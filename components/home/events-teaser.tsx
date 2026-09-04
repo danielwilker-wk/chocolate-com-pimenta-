@@ -1,31 +1,21 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { getEventos } from "@/lib/supabase/queries";
 
-const events = [
-  {
-    name: "[NOME DO EVENTO]",
-    date: "[DATA]",
-    time: "[HORÁRIO]",
-    image:
-      "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?q=80&w=1200&auto=format&fit=crop",
-  },
-  {
-    name: "[NOME DO EVENTO]",
-    date: "[DATA]",
-    time: "[HORÁRIO]",
-    image:
-      "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=1200&auto=format&fit=crop",
-  },
-  {
-    name: "[NOME DO EVENTO]",
-    date: "[DATA]",
-    time: "[HORÁRIO]",
-    image:
-      "https://images.unsplash.com/photo-1571266028243-e4bb35e9c1a4?q=80&w=1200&auto=format&fit=crop",
-  },
-];
+function formatarData(data: string | null) {
+  if (!data) return null;
+  return new Date(data + "T00:00:00").toLocaleDateString("pt-PT", {
+    day: "2-digit",
+    month: "short",
+  });
+}
 
-export default function EventsTeaser() {
+export default async function EventsTeaser() {
+  const todosEventos = await getEventos();
+  const eventos = todosEventos.slice(0, 3);
+
+  if (eventos.length === 0) return null;
+
   return (
     <section className="py-24 md:py-32 px-6 bg-cacao/40">
       <div className="mx-auto max-w-7xl">
@@ -47,31 +37,38 @@ export default function EventsTeaser() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          {events.map((event, i) => (
-            <div
-              key={i}
-              className="group border border-white/5 hover:border-gold/30 transition-colors duration-300"
+          {eventos.map((evento) => (
+            <Link
+              href="/eventos"
+              key={evento.id}
+              className="group border border-white/5 hover:border-gold/30 transition-colors duration-300 block"
             >
-              <div className="aspect-[4/3] overflow-hidden">
-                <img
-                  src={event.image}
-                  alt={event.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+              <div className="aspect-[4/3] overflow-hidden bg-ink-soft">
+                {evento.foto_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={evento.foto_url}
+                    alt={evento.nome}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-mist text-sm">
+                    Chocolate com Pimenta
+                  </div>
+                )}
               </div>
               <div className="p-6">
                 <p className="text-gold text-xs tracking-wide uppercase mb-2">
-                  {event.date} · {event.time}
+                  {[formatarData(evento.data), evento.horario]
+                    .filter(Boolean)
+                    .join(" · ") || "Data a confirmar"}
                 </p>
-                <h3 className="font-display text-xl mb-4">{event.name}</h3>
-                <Link
-                  href="/eventos"
-                  className="text-xs tracking-[0.15em] uppercase text-mist hover:text-gold transition-colors"
-                >
+                <h3 className="font-display text-xl mb-4">{evento.nome}</h3>
+                <span className="text-xs tracking-[0.15em] uppercase text-mist group-hover:text-gold transition-colors">
                   Ver detalhes
-                </Link>
+                </span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

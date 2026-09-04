@@ -4,6 +4,8 @@ import BusinessPanels from "@/components/home/business-panels";
 import EventsTeaser from "@/components/home/events-teaser";
 import CtaSection from "@/components/home/cta-section";
 
+export const dynamic = "force-dynamic";
+
 export default function Home() {
   return (
     <>
