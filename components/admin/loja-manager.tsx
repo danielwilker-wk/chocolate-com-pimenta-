@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/browser-client";
 import { Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import ImageUpload from "./image-upload";
 
 type Loja = {
   id: string;
@@ -86,12 +87,25 @@ export default function LojaManager({ slug }: { slug: string }) {
             }}
           />
         ) : (
-          <div className="border border-white/10 p-6 max-w-lg space-y-3 text-sm">
+          <div className="border border-white/10 p-6 max-w-lg space-y-4 text-sm">
+            <div className="w-24 h-24 bg-ink border border-white/10 overflow-hidden">
+              {loja.foto_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={loja.foto_url}
+                  alt={loja.nome}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-mist text-[10px] text-center p-2">
+                  Sem foto
+                </div>
+              )}
+            </div>
             <InfoLine label="Localização" value={loja.localizacao} />
             <InfoLine label="Horário" value={loja.horario} />
             <InfoLine label="Telefone" value={loja.telefone} />
             <InfoLine label="WhatsApp" value={loja.whatsapp} />
-            <InfoLine label="Foto (URL)" value={loja.foto_url} />
           </div>
         )}
       </section>
@@ -156,7 +170,7 @@ function LojaInfoForm({
   const [horario, setHorario] = useState(loja.horario ?? "");
   const [telefone, setTelefone] = useState(loja.telefone ?? "");
   const [whatsapp, setWhatsapp] = useState(loja.whatsapp ?? "");
-  const [fotoUrl, setFotoUrl] = useState(loja.foto_url ?? "");
+  const [fotoUrl, setFotoUrl] = useState<string | null>(loja.foto_url);
   const [guardando, setGuardando] = useState(false);
 
   async function guardar() {
@@ -168,7 +182,7 @@ function LojaInfoForm({
         horario: horario.trim() || null,
         telefone: telefone.trim() || null,
         whatsapp: whatsapp.trim() || null,
-        foto_url: fotoUrl.trim() || null,
+        foto_url: fotoUrl,
       })
       .eq("id", loja.id);
     setGuardando(false);
@@ -177,6 +191,7 @@ function LojaInfoForm({
 
   return (
     <div className="border border-gold/30 p-6 max-w-lg space-y-4">
+      <ImageUpload value={fotoUrl} onChange={setFotoUrl} label="Foto da loja" />
       <Field label="Localização" value={localizacao} onChange={setLocalizacao} />
       <Field
         label="Horário"
@@ -190,12 +205,6 @@ function LojaInfoForm({
         value={whatsapp}
         onChange={setWhatsapp}
         placeholder="Ex: 244976684181"
-      />
-      <Field
-        label="Foto (URL)"
-        value={fotoUrl}
-        onChange={setFotoUrl}
-        placeholder="https://..."
       />
       <div className="flex gap-2 pt-2">
         <button
@@ -254,7 +263,7 @@ function ProdutoRow({
   const [nome, setNome] = useState(produto.nome);
   const [descricao, setDescricao] = useState(produto.descricao ?? "");
   const [preco, setPreco] = useState(produto.preco?.toString() ?? "");
-  const [fotoUrl, setFotoUrl] = useState(produto.foto_url ?? "");
+  const [fotoUrl, setFotoUrl] = useState<string | null>(produto.foto_url);
 
   async function guardar() {
     await supabase
@@ -263,7 +272,7 @@ function ProdutoRow({
         nome: nome.trim(),
         descricao: descricao.trim() || null,
         preco: preco ? Number(preco) : null,
-        foto_url: fotoUrl.trim() || null,
+        foto_url: fotoUrl,
       })
       .eq("id", produto.id);
     setEditando(false);
@@ -287,6 +296,7 @@ function ProdutoRow({
   if (editando) {
     return (
       <div className="border border-gold/30 p-4 space-y-3">
+        <ImageUpload value={fotoUrl} onChange={setFotoUrl} label="Foto" />
         <input
           value={nome}
           onChange={(e) => setNome(e.target.value)}
@@ -305,12 +315,6 @@ function ProdutoRow({
           type="number"
           className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
           placeholder="Preço em Kz"
-        />
-        <input
-          value={fotoUrl}
-          onChange={(e) => setFotoUrl(e.target.value)}
-          className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
-          placeholder="Foto (URL, opcional)"
         />
         <div className="flex gap-2">
           <button
@@ -332,15 +336,27 @@ function ProdutoRow({
 
   return (
     <div className="flex items-center justify-between gap-4 border border-white/10 px-4 py-3">
-      <div className="min-w-0">
-        <p
-          className={`font-medium truncate ${!produto.disponivel ? "text-mist line-through" : ""}`}
-        >
-          {produto.nome}
-        </p>
-        {produto.descricao && (
-          <p className="text-mist text-xs truncate">{produto.descricao}</p>
-        )}
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-12 h-12 shrink-0 bg-ink border border-white/10 overflow-hidden">
+          {produto.foto_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={produto.foto_url}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p
+            className={`font-medium truncate ${!produto.disponivel ? "text-mist line-through" : ""}`}
+          >
+            {produto.nome}
+          </p>
+          {produto.descricao && (
+            <p className="text-mist text-xs truncate">{produto.descricao}</p>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-3 shrink-0">
         <span className="text-gold text-sm">
@@ -388,25 +404,36 @@ function NovoProdutoForm({
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [preco, setPreco] = useState("");
-  const [fotoUrl, setFotoUrl] = useState("");
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [erro, setErro] = useState("");
 
   async function guardar() {
-    if (!nome.trim()) return;
+    if (!nome.trim()) {
+      setErro("O nome do produto é obrigatório.");
+      return;
+    }
     setGuardando(true);
-    await supabase.from("produtos").insert({
+    setErro("");
+    const { error } = await supabase.from("produtos").insert({
       loja_id: lojaId,
       nome: nome.trim(),
       descricao: descricao.trim() || null,
       preco: preco ? Number(preco) : null,
-      foto_url: fotoUrl.trim() || null,
+      foto_url: fotoUrl,
     });
     setGuardando(false);
+
+    if (error) {
+      setErro("Não foi possível guardar. Tenta novamente.");
+      return;
+    }
     onSaved();
   }
 
   return (
     <div className="border border-gold/30 p-4 space-y-3">
+      <ImageUpload value={fotoUrl} onChange={setFotoUrl} label="Foto" />
       <input
         value={nome}
         onChange={(e) => setNome(e.target.value)}
@@ -427,19 +454,14 @@ function NovoProdutoForm({
         className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
         placeholder="Preço em Kz (opcional)"
       />
-      <input
-        value={fotoUrl}
-        onChange={(e) => setFotoUrl(e.target.value)}
-        className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
-        placeholder="Foto (URL, opcional)"
-      />
+      {erro && <p className="text-red-400 text-xs">{erro}</p>}
       <div className="flex gap-2">
         <button
           onClick={guardar}
           disabled={guardando}
           className="inline-flex items-center gap-1 bg-gold text-ink px-4 py-2 text-xs uppercase font-semibold disabled:opacity-60"
         >
-          <Check size={14} /> Guardar
+          <Check size={14} /> {guardando ? "A guardar..." : "Guardar"}
         </button>
         <button
           onClick={onCancel}

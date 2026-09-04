@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/browser-client";
-import { Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check, ChevronDown } from "lucide-react";
+import ImageUpload from "./image-upload";
 
 type Categoria = { id: string; nome: string; ordem: number };
 type Produto = {
@@ -11,6 +12,7 @@ type Produto = {
   nome: string;
   descricao: string | null;
   preco: number | null;
+  foto_url: string | null;
   disponivel: boolean;
   ordem: number;
 };
@@ -19,6 +21,7 @@ type Combo = {
   nome: string;
   descricao: string | null;
   preco: number | null;
+  foto_url: string | null;
   disponivel: boolean;
   ordem: number;
 };
@@ -32,7 +35,6 @@ export default function MenuManager() {
   const [erro, setErro] = useState("");
 
   const carregarTudo = useCallback(async () => {
-    setLoading(true);
     const [catRes, prodRes, comboRes] = await Promise.all([
       supabase.from("menu_categorias").select("*").order("ordem"),
       supabase.from("menu_produtos").select("*").order("ordem"),
@@ -91,16 +93,35 @@ function CategoriasEProdutos({
 }) {
   const supabase = createClient();
   const [novaCategoria, setNovaCategoria] = useState("");
-  const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null);
+  // Guarda o conjunto de categorias expandidas (em vez de só uma), para não
+  // fechar tudo sempre que os dados são recarregados.
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
+
+  function alternarExpansao(id: string) {
+    setExpandidas((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(id)) {
+        novo.delete(id);
+      } else {
+        novo.add(id);
+      }
+      return novo;
+    });
+  }
 
   async function adicionarCategoria() {
     const nome = novaCategoria.trim();
     if (!nome) return;
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("menu_categorias")
-      .insert({ nome, ordem: categorias.length });
-    if (!error) {
+      .insert({ nome, ordem: categorias.length })
+      .select()
+      .single();
+    if (!error && data) {
       setNovaCategoria("");
+      // Abre automaticamente a categoria recém-criada, para o próximo passo
+      // (adicionar produtos) ficar óbvio e imediato.
+      setExpandidas((prev) => new Set(prev).add(data.id));
       onChange();
     }
   }
@@ -138,47 +159,56 @@ function CategoriasEProdutos({
         </button>
       </div>
 
-      <div className="space-y-4">
-        {categorias.map((cat) => (
-          <div key={cat.id} className="border border-white/10">
-            <div className="flex items-center justify-between px-5 py-4 bg-ink-soft">
-              <button
-                onClick={() =>
-                  setCategoriaAberta(categoriaAberta === cat.id ? null : cat.id)
-                }
-                className="font-display text-lg text-left flex-1"
-              >
-                {cat.nome}
-                <span className="text-mist text-sm ml-2 font-body">
-                  ({produtos.filter((p) => p.categoria_id === cat.id).length}{" "}
-                  produtos)
-                </span>
-              </button>
-              <button
-                onClick={() => removerCategoria(cat.id)}
-                aria-label="Remover categoria"
-                className="text-mist hover:text-red-400 transition-colors p-2"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
+      {categorias.length === 0 && (
+        <p className="text-mist text-sm">
+          Ainda não há categorias. Adiciona a primeira acima.
+        </p>
+      )}
 
-            {categoriaAberta === cat.id && (
-              <div className="p-5">
-                <ProdutosDaCategoria
-                  categoriaId={cat.id}
-                  produtos={produtos.filter((p) => p.categoria_id === cat.id)}
-                  onChange={onChange}
-                />
+      <div className="space-y-4">
+        {categorias.map((cat) => {
+          const aberta = expandidas.has(cat.id);
+          return (
+            <div key={cat.id} className="border border-white/10">
+              <div className="flex items-center justify-between px-5 py-4 bg-ink-soft">
+                <button
+                  onClick={() => alternarExpansao(cat.id)}
+                  className="font-display text-lg text-left flex-1 flex items-center gap-3"
+                >
+                  <ChevronDown
+                    size={18}
+                    className={`text-gold transition-transform duration-200 ${aberta ? "rotate-180" : ""}`}
+                  />
+                  {cat.nome}
+                  <span className="text-mist text-sm font-body">
+                    (
+                    {produtos.filter((p) => p.categoria_id === cat.id).length}{" "}
+                    produtos)
+                  </span>
+                </button>
+                <button
+                  onClick={() => removerCategoria(cat.id)}
+                  aria-label="Remover categoria"
+                  className="text-mist hover:text-red-400 transition-colors p-2"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
-            )}
-          </div>
-        ))}
-        {categorias.length === 0 && (
-          <p className="text-mist text-sm">
-            Ainda não há categorias. Adiciona a primeira acima.
-          </p>
-        )}
+
+              {aberta && (
+                <div className="p-5">
+                  <ProdutosDaCategoria
+                    categoriaId={cat.id}
+                    produtos={produtos.filter(
+                      (p) => p.categoria_id === cat.id
+                    )}
+                    onChange={onChange}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -212,6 +242,12 @@ function ProdutosDaCategoria({
 
   return (
     <div className="space-y-3">
+      {produtos.length === 0 && !aCriar && (
+        <p className="text-mist text-sm mb-2">
+          Ainda não há produtos nesta categoria.
+        </p>
+      )}
+
       {produtos.map((produto) => (
         <ProdutoRow
           key={produto.id}
@@ -259,6 +295,7 @@ function ProdutoRow({
   const [nome, setNome] = useState(produto.nome);
   const [descricao, setDescricao] = useState(produto.descricao ?? "");
   const [preco, setPreco] = useState(produto.preco?.toString() ?? "");
+  const [fotoUrl, setFotoUrl] = useState<string | null>(produto.foto_url);
 
   async function guardar() {
     await supabase
@@ -267,6 +304,7 @@ function ProdutoRow({
         nome: nome.trim(),
         descricao: descricao.trim() || null,
         preco: preco ? Number(preco) : null,
+        foto_url: fotoUrl,
       })
       .eq("id", produto.id);
     setEditando(false);
@@ -276,6 +314,7 @@ function ProdutoRow({
   if (editando) {
     return (
       <div className="border border-gold/30 p-4 space-y-3">
+        <ImageUpload value={fotoUrl} onChange={setFotoUrl} label="Foto" />
         <input
           value={nome}
           onChange={(e) => setNome(e.target.value)}
@@ -315,15 +354,27 @@ function ProdutoRow({
 
   return (
     <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-3">
-      <div className="min-w-0">
-        <p
-          className={`font-medium truncate ${!produto.disponivel ? "text-mist line-through" : ""}`}
-        >
-          {produto.nome}
-        </p>
-        {produto.descricao && (
-          <p className="text-mist text-xs truncate">{produto.descricao}</p>
-        )}
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-12 h-12 shrink-0 bg-ink-soft border border-white/10 overflow-hidden">
+          {produto.foto_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={produto.foto_url}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p
+            className={`font-medium truncate ${!produto.disponivel ? "text-mist line-through" : ""}`}
+          >
+            {produto.nome}
+          </p>
+          {produto.descricao && (
+            <p className="text-mist text-xs truncate">{produto.descricao}</p>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-3 shrink-0">
         <span className="text-gold text-sm">
@@ -371,23 +422,36 @@ function NovoProdutoForm({
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [preco, setPreco] = useState("");
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [erro, setErro] = useState("");
 
   async function guardar() {
-    if (!nome.trim()) return;
+    if (!nome.trim()) {
+      setErro("O nome do produto é obrigatório.");
+      return;
+    }
     setGuardando(true);
-    await supabase.from("menu_produtos").insert({
+    setErro("");
+    const { error } = await supabase.from("menu_produtos").insert({
       categoria_id: categoriaId,
       nome: nome.trim(),
       descricao: descricao.trim() || null,
       preco: preco ? Number(preco) : null,
+      foto_url: fotoUrl,
     });
     setGuardando(false);
+
+    if (error) {
+      setErro("Não foi possível guardar. Tenta novamente.");
+      return;
+    }
     onSaved();
   }
 
   return (
     <div className="border border-gold/30 p-4 space-y-3">
+      <ImageUpload value={fotoUrl} onChange={setFotoUrl} label="Foto" />
       <input
         value={nome}
         onChange={(e) => setNome(e.target.value)}
@@ -408,13 +472,14 @@ function NovoProdutoForm({
         className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
         placeholder="Preço em Kz (opcional)"
       />
+      {erro && <p className="text-red-400 text-xs">{erro}</p>}
       <div className="flex gap-2">
         <button
           onClick={guardar}
           disabled={guardando}
           className="inline-flex items-center gap-1 bg-gold text-ink px-4 py-2 text-xs uppercase font-semibold disabled:opacity-60"
         >
-          <Check size={14} /> Guardar
+          <Check size={14} /> {guardando ? "A guardar..." : "Guardar"}
         </button>
         <button
           onClick={onCancel}
@@ -506,6 +571,7 @@ function ComboRow({
   const [nome, setNome] = useState(combo.nome);
   const [descricao, setDescricao] = useState(combo.descricao ?? "");
   const [preco, setPreco] = useState(combo.preco?.toString() ?? "");
+  const [fotoUrl, setFotoUrl] = useState<string | null>(combo.foto_url);
 
   async function guardar() {
     await supabase
@@ -514,6 +580,7 @@ function ComboRow({
         nome: nome.trim(),
         descricao: descricao.trim() || null,
         preco: preco ? Number(preco) : null,
+        foto_url: fotoUrl,
       })
       .eq("id", combo.id);
     setEditando(false);
@@ -523,6 +590,7 @@ function ComboRow({
   if (editando) {
     return (
       <div className="border border-gold/30 p-4 space-y-3">
+        <ImageUpload value={fotoUrl} onChange={setFotoUrl} label="Foto" />
         <input
           value={nome}
           onChange={(e) => setNome(e.target.value)}
@@ -561,15 +629,27 @@ function ComboRow({
 
   return (
     <div className="flex items-center justify-between gap-4 border border-white/10 px-4 py-3">
-      <div className="min-w-0">
-        <p
-          className={`font-medium truncate ${!combo.disponivel ? "text-mist line-through" : ""}`}
-        >
-          {combo.nome}
-        </p>
-        {combo.descricao && (
-          <p className="text-mist text-xs truncate">{combo.descricao}</p>
-        )}
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-12 h-12 shrink-0 bg-ink-soft border border-white/10 overflow-hidden">
+          {combo.foto_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={combo.foto_url}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p
+            className={`font-medium truncate ${!combo.disponivel ? "text-mist line-through" : ""}`}
+          >
+            {combo.nome}
+          </p>
+          {combo.descricao && (
+            <p className="text-mist text-xs truncate">{combo.descricao}</p>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-3 shrink-0">
         <span className="text-gold text-sm">
@@ -615,22 +695,35 @@ function NovoComboForm({
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [preco, setPreco] = useState("");
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [erro, setErro] = useState("");
 
   async function guardar() {
-    if (!nome.trim()) return;
+    if (!nome.trim()) {
+      setErro("O nome do combo é obrigatório.");
+      return;
+    }
     setGuardando(true);
-    await supabase.from("menu_combos").insert({
+    setErro("");
+    const { error } = await supabase.from("menu_combos").insert({
       nome: nome.trim(),
       descricao: descricao.trim() || null,
       preco: preco ? Number(preco) : null,
+      foto_url: fotoUrl,
     });
     setGuardando(false);
+
+    if (error) {
+      setErro("Não foi possível guardar. Tenta novamente.");
+      return;
+    }
     onSaved();
   }
 
   return (
     <div className="border border-gold/30 p-4 space-y-3">
+      <ImageUpload value={fotoUrl} onChange={setFotoUrl} label="Foto" />
       <input
         value={nome}
         onChange={(e) => setNome(e.target.value)}
@@ -651,13 +744,14 @@ function NovoComboForm({
         className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
         placeholder="Preço em Kz (opcional)"
       />
+      {erro && <p className="text-red-400 text-xs">{erro}</p>}
       <div className="flex gap-2">
         <button
           onClick={guardar}
           disabled={guardando}
           className="inline-flex items-center gap-1 bg-gold text-ink px-4 py-2 text-xs uppercase font-semibold disabled:opacity-60"
         >
-          <Check size={14} /> Guardar
+          <Check size={14} /> {guardando ? "A guardar..." : "Guardar"}
         </button>
         <button
           onClick={onCancel}

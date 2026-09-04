@@ -1,23 +1,34 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Hero() {
   return (
-    <section className="relative h-screen min-h-[640px] w-full overflow-hidden flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-cover bg-center scale-105"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=2000&auto=format&fit=crop')",
-        }}
-        aria-hidden
-      />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/55 to-ink" />
-      <div className="absolute inset-0 bg-black/20" />
+    <section className="relative h-screen min-h-[640px] w-full overflow-hidden flex items-center justify-center bg-ink">
+      {/* Fundo: logo ampliado e desfocado, para textura sem competir com o texto */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-20 blur-2xl scale-150">
+        <Image
+          src="/logo.jpeg"
+          alt=""
+          width={900}
+          height={635}
+          className="object-contain"
+          priority
+          aria-hidden
+        />
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-b from-ink/40 via-ink/70 to-ink" />
 
       <div className="relative z-10 text-center px-6 max-w-4xl mx-auto animate-hero-in">
-        <p className="text-gold text-xs md:text-sm tracking-[0.35em] uppercase mb-6 font-body font-medium">
-          Chocolate com Pimenta
-        </p>
+        <div className="flex justify-center mb-8">
+          <Image
+            src="/logo.jpeg"
+            alt="Chocolate com Pimenta"
+            width={140}
+            height={99}
+            className="w-28 md:w-36 h-auto object-contain"
+            priority
+          />
+        </div>
         <h1 className="font-display italic text-4xl sm:text-5xl md:text-7xl leading-[1.08] text-paper mb-6">
           Uma marca.
           <br />
