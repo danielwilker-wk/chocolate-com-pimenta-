@@ -23,6 +23,8 @@ export const ROTULO_PAPEL: Record<PapelAdmin, string> = {
 export function areasVisiveis(papel: PapelAdmin) {
   return {
     menu: papel === "admin" || papel === "gerente_restaurante",
+    vendas: papel === "admin" || papel === "gerente_restaurante",
+    estoque: papel === "admin" || papel === "gerente_restaurante",
     reservas: papel === "admin" || papel === "gerente_restaurante",
     eventos: papel === "admin" || papel === "gerente_restaurante",
     loja01: papel === "admin" || papel === "gerente_loja01",
