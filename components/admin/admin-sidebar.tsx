@@ -27,6 +27,11 @@ export default function AdminSidebar({
     { href: "/admin/lojas/loja-02", label: "Loja 02", show: areas.loja02 },
     { href: "/admin/lojas", label: "Lojas (geral)", show: areas.lojasGeral },
     {
+      href: "/admin/conteudo",
+      label: "Conteúdo do site",
+      show: areas.lojasGeral,
+    },
+    {
       href: "/admin/utilizadores",
       label: "Utilizadores",
       show: areas.utilizadores,

@@ -129,6 +129,43 @@ export async function getEventos(): Promise<Evento[]> {
   return data ?? [];
 }
 
+export type SecaoConteudo = {
+  chave: string;
+  titulo: string | null;
+  corpo: string | null;
+};
+
+export type ImagemSite = {
+  id: string;
+  posicao: string;
+  url: string;
+  legenda: string | null;
+  ordem: number;
+};
+
+/** Devolve as secções de conteúdo institucional (ex: texto da página Sobre). */
+export async function getSecoesConteudo(): Promise<SecaoConteudo[]> {
+  const { data, error } = await supabase
+    .from("conteudo_secoes")
+    .select("chave, titulo, corpo");
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Devolve as imagens ativas para uma posição específica do site (ex: 'sobre_galeria'). */
+export async function getImagensPorPosicao(
+  posicao: string
+): Promise<ImagemSite[]> {
+  const { data, error } = await supabase
+    .from("imagens_site")
+    .select("id, posicao, url, legenda, ordem")
+    .eq("posicao", posicao)
+    .eq("ativa", true)
+    .order("ordem", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
 export type NovaReserva = {
   nome: string;
   telefone: string;

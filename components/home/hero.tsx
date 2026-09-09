@@ -1,22 +1,43 @@
 import Link from "next/link";
 import Image from "next/image";
+import { getImagensPorPosicao } from "@/lib/supabase/queries";
 
-export default function Hero() {
+export default async function Hero() {
+  // Se o admin tiver definido uma imagem de fundo em "Conteúdo do site",
+  // usa-a; senão, mostra o logo como fallback elegante.
+  const imagensFundo = await getImagensPorPosicao("hero_home");
+  const fundoPersonalizado = imagensFundo[0]?.url;
+
   return (
     <section className="relative h-screen min-h-[640px] w-full overflow-hidden flex items-center justify-center bg-ink">
-      {/* Fundo: logo ampliado e desfocado, para textura sem competir com o texto */}
-      <div className="absolute inset-0 flex items-center justify-center opacity-20 blur-2xl scale-150">
-        <Image
-          src="/logo.jpeg"
-          alt=""
-          width={900}
-          height={635}
-          className="object-contain"
-          priority
-          aria-hidden
-        />
-      </div>
-      <div className="absolute inset-0 bg-gradient-to-b from-ink/40 via-ink/70 to-ink" />
+      {fundoPersonalizado ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={fundoPersonalizado}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            aria-hidden
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-ink" />
+        </>
+      ) : (
+        <>
+          {/* Fundo: logo ampliado e desfocado, para textura sem competir com o texto */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-20 blur-2xl scale-150">
+            <Image
+              src="/logo.jpeg"
+              alt=""
+              width={900}
+              height={635}
+              className="object-contain"
+              priority
+              aria-hidden
+            />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-b from-ink/40 via-ink/70 to-ink" />
+        </>
+      )}
 
       <div className="relative z-10 text-center px-6 max-w-4xl mx-auto animate-hero-in">
         <div className="flex justify-center mb-8">
