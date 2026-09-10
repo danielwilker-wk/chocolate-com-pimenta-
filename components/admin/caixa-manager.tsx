@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/browser-client";
-import { Lock, Unlock, Check } from "lucide-react";
+import { Lock, Unlock, Check, FileDown } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type Area = "bar" | "restaurante";
 
@@ -19,6 +21,14 @@ type Sessao = {
 type VendaResumo = {
   preco_total: number;
   forma_pagamento: "dinheiro" | "multicaixa";
+};
+
+type VendaDetalhada = {
+  quantidade: number;
+  preco_total: number;
+  forma_pagamento: "dinheiro" | "multicaixa";
+  troco: number | null;
+  estoque_itens: { nome: string } | null;
 };
 
 const AREA_LABEL: Record<Area, string> = {
@@ -51,6 +61,95 @@ export default function CaixaManager() {
   );
 }
 
+async function gerarRelatorioPDF(sessao: Sessao, area: Area) {
+  const supabase = createClient();
+  const fim = sessao.fechado_em ?? new Date().toISOString();
+
+  const { data } = await supabase
+    .from("vendas")
+    .select("quantidade, preco_total, forma_pagamento, troco, estoque_itens(nome)")
+    .eq("area", area)
+    .gte("criado_em", sessao.aberto_em)
+    .lte("criado_em", fim);
+
+  const vendas = (data as unknown as VendaDetalhada[]) ?? [];
+
+  const totalVendido = vendas.reduce((s, v) => s + v.preco_total, 0);
+  const numeroVendas = vendas.length;
+  const trocoTotal = vendas.reduce((s, v) => s + (v.troco ?? 0), 0);
+  const vendasDinheiro = vendas
+    .filter((v) => v.forma_pagamento === "dinheiro")
+    .reduce((s, v) => s + v.preco_total, 0);
+  const vendasMulticaixa = vendas
+    .filter((v) => v.forma_pagamento === "multicaixa")
+    .reduce((s, v) => s + v.preco_total, 0);
+  const valorEsperado = sessao.valor_abertura + vendasDinheiro;
+  const valorContado = sessao.valor_contado_fecho ?? 0;
+  const diferenca = valorContado - valorEsperado;
+
+  const porProduto = new Map<string, { quantidade: number; total: number }>();
+  vendas.forEach((v) => {
+    const nome = v.estoque_itens?.nome ?? "Item removido";
+    const atual = porProduto.get(nome) ?? { quantidade: 0, total: 0 };
+    atual.quantidade += v.quantidade;
+    atual.total += v.preco_total;
+    porProduto.set(nome, atual);
+  });
+
+  const fmt = (n: number) => `${n.toLocaleString("pt-PT")} Kz`;
+  const dataStr = new Date(sessao.aberto_em).toLocaleDateString("pt-PT");
+
+  const doc = new jsPDF();
+
+  doc.setFontSize(16);
+  doc.text(`Relatório de Caixa — ${AREA_LABEL[area]}`, 14, 18);
+  doc.setFontSize(10);
+  doc.setTextColor(120);
+  doc.text(`Chocolate com Pimenta — ${dataStr}`, 14, 25);
+  doc.setTextColor(0);
+
+  autoTable(doc, {
+    startY: 32,
+    head: [["Resumo financeiro", "Valor"]],
+    body: [
+      ["Valor de abertura", fmt(sessao.valor_abertura)],
+      ["Total vendido", fmt(totalVendido)],
+      ["Número de vendas", `${numeroVendas}`],
+      ["Troco total entregue", fmt(trocoTotal)],
+      ["Valor esperado no fecho", fmt(valorEsperado)],
+      ["Valor contado no fecho", fmt(valorContado)],
+      ["Diferença", `${diferenca >= 0 ? "+" : ""}${fmt(diferenca)}`],
+    ],
+    headStyles: { fillColor: [36, 19, 13] },
+  });
+
+  autoTable(doc, {
+    startY: (doc as unknown as { lastAutoTable: { finalY: number } })
+      .lastAutoTable.finalY + 10,
+    head: [["Método de pagamento", "Total"]],
+    body: [
+      ["Dinheiro", fmt(vendasDinheiro)],
+      ["Multicaixa", fmt(vendasMulticaixa)],
+    ],
+    headStyles: { fillColor: [36, 19, 13] },
+  });
+
+  autoTable(doc, {
+    startY: (doc as unknown as { lastAutoTable: { finalY: number } })
+      .lastAutoTable.finalY + 10,
+    head: [["Produto", "Quantidade", "Total vendido"]],
+    body: Array.from(porProduto.entries()).map(([nome, d]) => [
+      nome,
+      `${d.quantidade}`,
+      fmt(d.total),
+    ]),
+    headStyles: { fillColor: [36, 19, 13] },
+  });
+
+  const dataFicheiro = (sessao.fechado_em ?? sessao.aberto_em).slice(0, 10);
+  doc.save(`relatorio-caixa-${area}-${dataFicheiro}.pdf`);
+}
+
 function CaixaDaArea({ area }: { area: Area }) {
   const supabase = createClient();
   const [sessaoAberta, setSessaoAberta] = useState<Sessao | null>(null);
@@ -59,6 +158,7 @@ function CaixaDaArea({ area }: { area: Area }) {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [aFechar, setAFechar] = useState(false);
+  const [aGerarPdf, setAGerarPdf] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     const abertaRes = await supabase
@@ -134,6 +234,15 @@ function CaixaDaArea({ area }: { area: Area }) {
       return;
     }
     carregar();
+  }
+
+  async function baixarPdf(sessao: Sessao) {
+    setAGerarPdf(sessao.id);
+    try {
+      await gerarRelatorioPDF(sessao, area);
+    } finally {
+      setAGerarPdf(null);
+    }
   }
 
   if (loading) {
@@ -237,6 +346,14 @@ function CaixaDaArea({ area }: { area: Area }) {
                     {diferenca >= 0 ? "+" : ""}
                     {diferenca.toLocaleString("pt-PT")} Kz
                   </span>
+                  <button
+                    onClick={() => baixarPdf(s)}
+                    disabled={aGerarPdf === s.id}
+                    className="inline-flex items-center gap-1 text-xs uppercase text-gold hover:text-white transition-colors disabled:opacity-50 shrink-0"
+                  >
+                    <FileDown size={14} />
+                    {aGerarPdf === s.id ? "A gerar..." : "PDF"}
+                  </button>
                 </div>
               );
             })}
