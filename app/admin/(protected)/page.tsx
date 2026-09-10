@@ -1,4 +1,5 @@
-import { getPerfilAtual, ROTULO_PAPEL } from "@/lib/supabase/admin-auth";
+import { getPerfilAtual, ROTULO_PAPEL, areasVisiveis } from "@/lib/supabase/admin-auth";
+import DashboardRestauranteBar from "@/components/admin/dashboard-restaurante-bar";
 
 export const metadata = {
   title: "Painel administrativo",
@@ -6,6 +7,7 @@ export const metadata = {
 
 export default async function AdminDashboardPage() {
   const perfil = await getPerfilAtual();
+  const mostrarDashboard = perfil ? areasVisiveis(perfil.papel).vendas : false;
 
   return (
     <div>
@@ -20,12 +22,16 @@ export default async function AdminDashboardPage() {
         gestão da Chocolate com Pimenta.
       </p>
 
-      <div className="border border-white/10 bg-ink-soft p-6 max-w-xl">
-        <p className="text-sm text-mist leading-relaxed">
-          Usa o menu à esquerda para gerir o menu do restaurante, reservas,
-          eventos, ou o catálogo das lojas, consoante a tua área de acesso.
-        </p>
-      </div>
+      {mostrarDashboard ? (
+        <DashboardRestauranteBar />
+      ) : (
+        <div className="border border-white/10 bg-ink-soft p-6 max-w-xl">
+          <p className="text-sm text-mist leading-relaxed">
+            Usa o menu à esquerda para gerir o menu do restaurante, reservas,
+            eventos, ou o catálogo das lojas, consoante a tua área de acesso.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
