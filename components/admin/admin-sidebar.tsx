@@ -21,6 +21,7 @@ export default function AdminSidebar({
   const links = [
     { href: "/admin", label: "Visão geral", show: true },
     { href: "/admin/vendas", label: "Vendas", show: areas.vendas },
+    { href: "/admin/caixa", label: "Caixa", show: areas.caixa },
     { href: "/admin/estoque", label: "Stock", show: areas.estoque },
     { href: "/admin/menu", label: "Menu & Combos", show: areas.menu },
     { href: "/admin/reservas", label: "Reservas", show: areas.reservas },
