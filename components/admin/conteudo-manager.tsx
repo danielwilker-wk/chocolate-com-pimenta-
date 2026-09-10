@@ -35,6 +35,26 @@ const POSICOES_IMAGEM: { posicao: string; label: string; descricao: string }[] =
     descricao: "Imagem principal na primeira secção da homepage.",
   },
   {
+    posicao: "home_descubra",
+    label: "Home — \"Descubra a marca\"",
+    descricao: "Imagem ao lado do texto de introdução da marca.",
+  },
+  {
+    posicao: "negocio_restaurante",
+    label: "Card — Restaurante & Bar",
+    descricao: "Foto do card do Restaurante na secção \"Explore os nossos negócios\".",
+  },
+  {
+    posicao: "negocio_loja01",
+    label: "Card — Loja 01",
+    descricao: "Foto do card da Loja 01 na secção \"Explore os nossos negócios\".",
+  },
+  {
+    posicao: "negocio_loja02",
+    label: "Card — Loja 02",
+    descricao: "Foto do card da Loja 02 na secção \"Explore os nossos negócios\".",
+  },
+  {
     posicao: "sobre_principal",
     label: "Sobre — Imagem principal",
     descricao: "Imagem grande ao lado do texto da história.",

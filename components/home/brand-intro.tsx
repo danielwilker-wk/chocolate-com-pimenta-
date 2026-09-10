@@ -1,10 +1,18 @@
+import { getImagensPorPosicao } from "@/lib/supabase/queries";
+
 const stats = [
   { value: "3", label: "Negócios sob uma marca" },
   { value: "01", label: "Restaurante & bar" },
   { value: "02", label: "Lojas próprias" },
 ];
 
-export default function BrandIntro() {
+const IMAGEM_PADRAO =
+  "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?q=80&w=1400&auto=format&fit=crop";
+
+export default async function BrandIntro() {
+  const imagens = await getImagensPorPosicao("home_descubra");
+  const imagem = imagens[0]?.url || IMAGEM_PADRAO;
+
   return (
     <section className="relative py-28 md:py-36 px-6">
       <div className="mx-auto max-w-6xl grid gap-16 lg:grid-cols-[1.1fr_0.9fr] items-center">
@@ -32,8 +40,9 @@ export default function BrandIntro() {
 
         <div className="relative">
           <div className="aspect-[4/5] w-full overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?q=80&w=1400&auto=format&fit=crop"
+              src={imagem}
               alt="Ambiente Chocolate com Pimenta"
               className="w-full h-full object-cover"
             />

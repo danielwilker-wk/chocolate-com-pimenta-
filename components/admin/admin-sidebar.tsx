@@ -20,15 +20,17 @@ export default function AdminSidebar({
 
   const links = [
     { href: "/admin", label: "Visão geral", show: true },
-    { href: "/admin/vendas", label: "Vendas", show: areas.vendas },
-    { href: "/admin/caixa", label: "Caixa", show: areas.caixa },
-    { href: "/admin/estoque", label: "Stock", show: areas.estoque },
     { href: "/admin/menu", label: "Menu & Combos", show: areas.menu },
     { href: "/admin/reservas", label: "Reservas", show: areas.reservas },
     { href: "/admin/eventos", label: "Eventos", show: areas.eventos },
     { href: "/admin/lojas/loja-01", label: "Loja 01", show: areas.loja01 },
     { href: "/admin/lojas/loja-02", label: "Loja 02", show: areas.loja02 },
     { href: "/admin/lojas", label: "Lojas (geral)", show: areas.lojasGeral },
+    {
+      href: "/admin/conteudo",
+      label: "Conteúdo do site",
+      show: areas.lojasGeral,
+    },
     {
       href: "/admin/utilizadores",
       label: "Utilizadores",
@@ -52,6 +54,7 @@ export default function AdminSidebar({
         </p>
         <p className="text-mist text-xs mt-1">Painel administrativo</p>
       </div>
+
       <nav className="flex-1 flex md:flex-col overflow-x-auto md:overflow-visible p-3 md:p-4 gap-1">
         {links.map((link) => {
           const active = pathname === link.href;
@@ -70,6 +73,7 @@ export default function AdminSidebar({
           );
         })}
       </nav>
+
       <div className="p-4 border-t border-white/5 hidden md:block">
         <p className="text-sm text-paper truncate">{nome}</p>
         <p className="text-xs text-gold mb-4">{ROTULO_PAPEL[papel]}</p>
