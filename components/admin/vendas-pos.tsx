@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/browser-client";
 import { X, Check, ShoppingCart } from "lucide-react";
 
 type Area = "bar" | "restaurante";
+type FormaPagamento = "dinheiro" | "multicaixa";
 
 type ItemVendavel = {
   id: string;
@@ -20,6 +21,7 @@ type Venda = {
   quantidade: number;
   preco_unitario: number;
   preco_total: number;
+  forma_pagamento: FormaPagamento;
   criado_em: string;
   estoque_itens: { nome: string; area: Area } | null;
 };
@@ -27,6 +29,11 @@ type Venda = {
 const AREA_LABEL: Record<Area, string> = {
   bar: "Bar",
   restaurante: "Restaurante",
+};
+
+const PAGAMENTO_LABEL: Record<FormaPagamento, string> = {
+  dinheiro: "Dinheiro",
+  multicaixa: "Multicaixa",
 };
 
 export default function VendasPOS() {
@@ -55,7 +62,7 @@ export default function VendasPOS() {
       supabase
         .from("vendas")
         .select(
-          "id, quantidade, preco_unitario, preco_total, criado_em, estoque_itens(nome, area)"
+          "id, quantidade, preco_unitario, preco_total, forma_pagamento, criado_em, estoque_itens(nome, area)"
         )
         .gte("criado_em", inicioDoDia.toISOString())
         .order("criado_em", { ascending: false }),
@@ -170,6 +177,9 @@ export default function VendasPOS() {
                       {AREA_LABEL[v.estoque_itens.area]}
                     </span>
                   )}
+                  <span className="ml-2 text-[10px] uppercase text-gold border border-gold/30 px-1.5 py-0.5">
+                    {PAGAMENTO_LABEL[v.forma_pagamento]}
+                  </span>
                 </span>
                 <div className="flex items-center gap-4 shrink-0 text-mist">
                   <span className="text-gold">
@@ -216,6 +226,8 @@ function ModalVenda({
 }) {
   const supabase = createClient();
   const [quantidade, setQuantidade] = useState("1");
+  const [formaPagamento, setFormaPagamento] =
+    useState<FormaPagamento>("dinheiro");
   const [valorPago, setValorPago] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [erro, setErro] = useState("");
@@ -223,7 +235,12 @@ function ModalVenda({
   const precoUnitario = item.preco_venda ?? 0;
   const qtd = Number(quantidade) || 0;
   const precoTotal = precoUnitario * qtd;
-  const pago = valorPago === "" ? precoTotal : Number(valorPago);
+  const pago =
+    formaPagamento === "multicaixa"
+      ? precoTotal
+      : valorPago === ""
+        ? precoTotal
+        : Number(valorPago);
   const troco = pago - precoTotal;
 
   async function confirmar() {
@@ -247,8 +264,9 @@ function ModalVenda({
       quantidade: qtd,
       preco_unitario: precoUnitario,
       preco_total: precoTotal,
+      forma_pagamento: formaPagamento,
       valor_pago: pago,
-      troco,
+      troco: formaPagamento === "multicaixa" ? 0 : troco,
       responsavel_id: responsavelId,
     });
     setGuardando(false);
@@ -286,6 +304,27 @@ function ModalVenda({
           />
         </div>
 
+        <div>
+          <label className="text-mist text-xs uppercase tracking-wide mb-1 block">
+            Método de pagamento
+          </label>
+          <div className="flex gap-1">
+            {(["dinheiro", "multicaixa"] as const).map((fp) => (
+              <button
+                key={fp}
+                onClick={() => setFormaPagamento(fp)}
+                className={`flex-1 px-3 py-2 text-xs uppercase border ${
+                  formaPagamento === fp
+                    ? "bg-gold text-ink border-gold font-semibold"
+                    : "border-white/15 text-mist hover:text-paper"
+                }`}
+              >
+                {PAGAMENTO_LABEL[fp]}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex items-center justify-between text-sm border-t border-white/10 pt-3">
           <span className="text-mist">Preço unitário</span>
           <span>{precoUnitario.toLocaleString("pt-PT")} Kz</span>
@@ -297,25 +336,29 @@ function ModalVenda({
           </span>
         </div>
 
-        <div>
-          <label className="text-mist text-xs uppercase tracking-wide">
-            Valor entregue pelo cliente
-          </label>
-          <input
-            value={valorPago}
-            onChange={(e) => setValorPago(e.target.value)}
-            type="number"
-            placeholder={precoTotal.toString()}
-            className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none mt-1"
-          />
-        </div>
+        {formaPagamento === "dinheiro" && (
+          <>
+            <div>
+              <label className="text-mist text-xs uppercase tracking-wide">
+                Valor entregue pelo cliente
+              </label>
+              <input
+                value={valorPago}
+                onChange={(e) => setValorPago(e.target.value)}
+                type="number"
+                placeholder={precoTotal.toString()}
+                className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none mt-1"
+              />
+            </div>
 
-        <div className="flex items-center justify-between text-base font-medium border-t border-white/10 pt-3">
-          <span>Troco a entregar</span>
-          <span className={troco < 0 ? "text-red-400" : "text-gold"}>
-            {troco.toLocaleString("pt-PT")} Kz
-          </span>
-        </div>
+            <div className="flex items-center justify-between text-base font-medium border-t border-white/10 pt-3">
+              <span>Troco a entregar</span>
+              <span className={troco < 0 ? "text-red-400" : "text-gold"}>
+                {troco.toLocaleString("pt-PT")} Kz
+              </span>
+            </div>
+          </>
+        )}
 
         {erro && <p className="text-red-400 text-xs">{erro}</p>}
 
