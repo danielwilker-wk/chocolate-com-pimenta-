@@ -182,8 +182,8 @@ function CaixaDaArea({ area }: { area: Area }) {
       return;
     }
 
-    setSessaoAberta(abertaRes.data);
-    setHistorico(historicoRes.data ?? []);
+    setSessaoAberta((abertaRes.data as Sessao | null) ?? null);
+    setHistorico((historicoRes.data as Sessao[] | null) ?? []);
 
     if (abertaRes.data) {
       const vendasRes = await supabase
