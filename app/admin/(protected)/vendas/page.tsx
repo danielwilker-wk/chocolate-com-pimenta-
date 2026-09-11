@@ -9,6 +9,7 @@ export default async function AdminVendasPage() {
   if (!perfil || !areasVisiveis(perfil.papel).vendas) {
     redirect("/admin");
   }
+
   return (
     <div>
       <p className="text-gold text-xs tracking-[0.3em] uppercase mb-3">

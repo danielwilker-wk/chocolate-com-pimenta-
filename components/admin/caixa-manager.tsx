@@ -419,7 +419,6 @@ function AbrirCaixaForm({
         value={valor}
         onChange={(e) => setValor(e.target.value)}
         type="number"
-        autoFocus
         placeholder="ex: 5000"
         className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
       />
@@ -494,7 +493,6 @@ function FecharCaixaForm({
           value={valorContado}
           onChange={(e) => setValorContado(e.target.value)}
           type="number"
-          autoFocus
           className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none mt-1"
         />
       </div>
