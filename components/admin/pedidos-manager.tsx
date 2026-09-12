@@ -75,6 +75,7 @@ export default function PedidosManager() {
     const { data } = await supabase
       .from("pedidos")
       .select("*, pedido_itens(id, nome_produto, preco_unitario, quantidade)")
+      .eq("arquivado", false)
       .order("criado_em", { ascending: false });
     setPedidos((data as Pedido[]) ?? []);
     setLoading(false);

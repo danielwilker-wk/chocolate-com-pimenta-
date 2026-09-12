@@ -25,6 +25,7 @@ export default function AdminSidebar({
     { href: "/admin/estoque", label: "Stock", show: areas.estoque },
     { href: "/admin/menu", label: "Menu & Combos", show: areas.menu },
     { href: "/admin/pedidos", label: "Pedidos", show: areas.reservas },
+    { href: "/admin/arquivo", label: "Arquivo", show: areas.reservas },
     { href: "/admin/reservas", label: "Reservas", show: areas.reservas },
     { href: "/admin/eventos", label: "Eventos", show: areas.eventos },
     { href: "/admin/lojas/loja-01", label: "Loja 01", show: areas.loja01 },
