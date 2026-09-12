@@ -28,6 +28,19 @@ const SECOES_SOBRE: { chave: string; label: string }[] = [
   { chave: "sobre_visao", label: "Visão" },
 ];
 
+const SECOES_REDES: { chave: string; label: string; placeholder: string }[] = [
+  {
+    chave: "redes_instagram",
+    label: "Instagram",
+    placeholder: "https://instagram.com/chocolatecompimenta",
+  },
+  {
+    chave: "redes_facebook",
+    label: "Facebook",
+    placeholder: "https://facebook.com/chocolatecompimenta",
+  },
+];
+
 const POSICOES_IMAGEM: { posicao: string; label: string; descricao: string }[] = [
   {
     posicao: "hero_home",
@@ -111,6 +124,27 @@ export default function ConteudoManager() {
       </section>
 
       <section>
+        <h2 className="font-display text-2xl mb-2">Redes sociais</h2>
+        <p className="text-mist text-sm mb-6 max-w-lg">
+          Estes links aparecem no rodapé do site (ícones do Instagram e
+          Facebook). Cola o link completo, incluindo o https://.
+        </p>
+        <div className="space-y-4 max-w-2xl">
+          {SECOES_REDES.map((s) => (
+            <SecaoEditor
+              key={s.chave}
+              label={s.label}
+              secao={secoes.find((sec) => sec.chave === s.chave)}
+              chave={s.chave}
+              onSaved={carregar}
+              linhas={1}
+              placeholder={s.placeholder}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section>
         <h2 className="font-display text-2xl mb-2">Imagens do site</h2>
         <p className="text-mist text-sm mb-6 max-w-lg">
           Controla que fotos aparecem em cada parte do site. Onde há mais de
@@ -139,11 +173,15 @@ function SecaoEditor({
   secao,
   chave,
   onSaved,
+  linhas = 4,
+  placeholder,
 }: {
   label: string;
   secao: Secao | undefined;
   chave: string;
   onSaved: () => void;
+  linhas?: number;
+  placeholder?: string;
 }) {
   const supabase = createClient();
   const [corpo, setCorpo] = useState(secao?.corpo ?? "");
@@ -169,8 +207,11 @@ function SecaoEditor({
       <textarea
         value={corpo}
         onChange={(e) => setCorpo(e.target.value)}
-        rows={4}
-        placeholder="Ainda não preenchido — não aparece no site até escreveres algo aqui."
+        rows={linhas}
+        placeholder={
+          placeholder ??
+          "Ainda não preenchido — não aparece no site até escreveres algo aqui."
+        }
         className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none resize-y"
       />
       <div className="flex items-center gap-3 mt-3">
