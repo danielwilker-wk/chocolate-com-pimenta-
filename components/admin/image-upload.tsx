@@ -31,12 +31,27 @@ export default function ImageUpload({
     setErro("");
     setEnviando(true);
 
-    const extensao = file.name.split(".").pop();
+    // Alguns telemóveis e o Windows guardam fotos com extensões como .jfif
+    // ou .heic, que o navegador do visitante nem sempre reconhece como
+    // imagem. Normalizamos sempre para uma extensão comum e declaramos o
+    // tipo de conteúdo explicitamente, para a imagem aparecer para todos,
+    // não só para quem a enviou.
+    const tipoParaExtensao: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/gif": "gif",
+    };
+    const extensao = tipoParaExtensao[file.type] ?? "jpg";
     const nomeAleatorio = `${crypto.randomUUID()}.${extensao}`;
 
     const { error } = await supabase.storage
       .from("imagens")
-      .upload(nomeAleatorio, file, { upsert: false });
+      .upload(nomeAleatorio, file, {
+        upsert: false,
+        contentType: file.type,
+        cacheControl: "3600",
+      });
 
     if (error) {
       setErro("Não foi possível enviar a imagem. Tenta novamente.");

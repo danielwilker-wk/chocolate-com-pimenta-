@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/browser-client";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import ImageUpload from "./image-upload";
 
 type Secao = {
@@ -26,19 +26,6 @@ const SECOES_SOBRE: { chave: string; label: string }[] = [
   { chave: "sobre_valores", label: "Os nossos valores" },
   { chave: "sobre_missao", label: "Missão" },
   { chave: "sobre_visao", label: "Visão" },
-];
-
-const SECOES_REDES: { chave: string; label: string; placeholder: string }[] = [
-  {
-    chave: "redes_instagram",
-    label: "Instagram",
-    placeholder: "https://instagram.com/chocolatecompimenta",
-  },
-  {
-    chave: "redes_facebook",
-    label: "Facebook",
-    placeholder: "https://facebook.com/chocolatecompimenta",
-  },
 ];
 
 const POSICOES_IMAGEM: { posicao: string; label: string; descricao: string }[] = [
@@ -124,27 +111,6 @@ export default function ConteudoManager() {
       </section>
 
       <section>
-        <h2 className="font-display text-2xl mb-2">Redes sociais</h2>
-        <p className="text-mist text-sm mb-6 max-w-lg">
-          Estes links aparecem no rodapé do site (ícones do Instagram e
-          Facebook). Cola o link completo, incluindo o https://.
-        </p>
-        <div className="space-y-4 max-w-2xl">
-          {SECOES_REDES.map((s) => (
-            <SecaoEditor
-              key={s.chave}
-              label={s.label}
-              secao={secoes.find((sec) => sec.chave === s.chave)}
-              chave={s.chave}
-              onSaved={carregar}
-              linhas={1}
-              placeholder={s.placeholder}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section>
         <h2 className="font-display text-2xl mb-2">Imagens do site</h2>
         <p className="text-mist text-sm mb-6 max-w-lg">
           Controla que fotos aparecem em cada parte do site. Onde há mais de
@@ -173,15 +139,11 @@ function SecaoEditor({
   secao,
   chave,
   onSaved,
-  linhas = 4,
-  placeholder,
 }: {
   label: string;
   secao: Secao | undefined;
   chave: string;
   onSaved: () => void;
-  linhas?: number;
-  placeholder?: string;
 }) {
   const supabase = createClient();
   const [corpo, setCorpo] = useState(secao?.corpo ?? "");
@@ -207,11 +169,8 @@ function SecaoEditor({
       <textarea
         value={corpo}
         onChange={(e) => setCorpo(e.target.value)}
-        rows={linhas}
-        placeholder={
-          placeholder ??
-          "Ainda não preenchido — não aparece no site até escreveres algo aqui."
-        }
+        rows={4}
+        placeholder="Ainda não preenchido — não aparece no site até escreveres algo aqui."
         className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none resize-y"
       />
       <div className="flex items-center gap-3 mt-3">
@@ -244,19 +203,26 @@ function PosicaoImagens({
   onChange: () => void;
 }) {
   const supabase = createClient();
-  const [novaUrl, setNovaUrl] = useState<string | null>(null);
   const [adicionando, setAdicionando] = useState(false);
+  const [erro, setErro] = useState("");
 
-  async function adicionar() {
-    if (!novaUrl) return;
+  async function adicionarNova(url: string) {
     setAdicionando(true);
-    await supabase.from("imagens_site").insert({
+    setErro("");
+    const { error } = await supabase.from("imagens_site").insert({
       posicao,
-      url: novaUrl,
+      url,
       ordem: imagens.length,
     });
-    setNovaUrl(null);
     setAdicionando(false);
+
+    if (error) {
+      setErro(
+        "A foto foi enviada, mas não foi possível associá-la a esta posição. Tenta novamente."
+      );
+      return;
+    }
+
     onChange();
   }
 
@@ -315,19 +281,16 @@ function PosicaoImagens({
         ))}
 
         <div className="w-28">
-          <ImageUpload value={novaUrl} onChange={setNovaUrl} label="" />
+          <ImageUpload value={null} onChange={(url) => url && adicionarNova(url)} label="" />
+          {adicionando && (
+            <p className="text-gold text-[10px] mt-1.5 text-center">
+              A guardar...
+            </p>
+          )}
         </div>
       </div>
 
-      {novaUrl && (
-        <button
-          onClick={adicionar}
-          disabled={adicionando}
-          className="inline-flex items-center gap-2 bg-gold text-ink px-4 py-2 text-xs uppercase font-semibold disabled:opacity-60"
-        >
-          <Plus size={14} /> {adicionando ? "A adicionar..." : "Adicionar esta foto"}
-        </button>
-      )}
+      {erro && <p className="text-red-400 text-xs">{erro}</p>}
     </div>
   );
 }

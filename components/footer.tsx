@@ -2,18 +2,8 @@ import Link from "next/link";
 import { MessageCircle } from "lucide-react";
 import { siteConfig } from "@/lib/site-config";
 import { InstagramIcon, FacebookIcon } from "@/components/icons/brand-icons";
-import { getSecoesConteudo } from "@/lib/supabase/queries";
 
-export default async function Footer() {
-  const secoes = await getSecoesConteudo();
-
-  const instagramUrl =
-    secoes.find((s) => s.chave === "redes_instagram")?.corpo?.trim() ||
-    siteConfig.social.instagram;
-  const facebookUrl =
-    secoes.find((s) => s.chave === "redes_facebook")?.corpo?.trim() ||
-    siteConfig.social.facebook;
-
+export default function Footer() {
   return (
     <footer className="bg-black-secondary bg-ink-soft border-t border-white/5 pt-16 pb-8">
       <div className="mx-auto max-w-7xl px-6 lg:px-10">
@@ -27,14 +17,14 @@ export default async function Footer() {
             </p>
             <div className="flex gap-4 mt-6">
               <a
-                href={instagramUrl}
+                href={siteConfig.social.instagram}
                 aria-label="Instagram"
                 className="w-10 h-10 flex items-center justify-center border border-white/15 text-mist hover:text-gold hover:border-gold transition-colors"
               >
                 <InstagramIcon size={18} />
               </a>
               <a
-                href={facebookUrl}
+                href={siteConfig.social.facebook}
                 aria-label="Facebook"
                 className="w-10 h-10 flex items-center justify-center border border-white/15 text-mist hover:text-gold hover:border-gold transition-colors"
               >
