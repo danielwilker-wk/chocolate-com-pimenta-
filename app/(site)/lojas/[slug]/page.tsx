@@ -9,6 +9,7 @@ import { buildWhatsAppLink } from "@/lib/site-config";
 import ProdutoCard from "@/components/lojas/produto-card";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function generateStaticParams() {
   try {
