@@ -46,20 +46,21 @@ export default function CarrinhoFlutuante() {
     setErro("");
 
     const supabase = createClient();
+    // Gerado aqui em vez de pedido ao Supabase para o devolver: um visitante
+    // anónimo pode criar um pedido, mas não tem permissão para "ver" pedidos
+    // (isso é só para admin/gerente), por isso não podemos pedir RETURNING.
+    const pedidoId = crypto.randomUUID();
 
-    const { data: pedido, error: erroPedido } = await supabase
-      .from("pedidos")
-      .insert({
-        numero_mesa: numeroMesa.trim(),
-        nome_cliente: nomeCliente.trim(),
-        forma_pagamento: formaPagamento,
-        observacoes: observacoes.trim() || null,
-        total,
-      })
-      .select()
-      .single();
+    const { error: erroPedido } = await supabase.from("pedidos").insert({
+      id: pedidoId,
+      numero_mesa: numeroMesa.trim(),
+      nome_cliente: nomeCliente.trim(),
+      forma_pagamento: formaPagamento,
+      observacoes: observacoes.trim() || null,
+      total,
+    });
 
-    if (erroPedido || !pedido) {
+    if (erroPedido) {
       setErro("Não foi possível enviar o pedido. Tenta novamente.");
       setEnviando(false);
       return;
@@ -67,7 +68,7 @@ export default function CarrinhoFlutuante() {
 
     const { error: erroItens } = await supabase.from("pedido_itens").insert(
       itens.map((item) => ({
-        pedido_id: pedido.id,
+        pedido_id: pedidoId,
         produto_id: item.produtoId ?? null,
         combo_id: item.comboId ?? null,
         nome_produto: item.nome,
