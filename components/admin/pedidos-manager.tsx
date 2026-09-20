@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/browser-client";
-import { Check, Clock, Bell, X, User, CreditCard, Wallet } from "lucide-react";
+import { Check, Clock, Bell, X, User, CreditCard, Wallet, ShoppingCart } from "lucide-react";
 
 type EstadoPedido = "pendente" | "confirmado" | "entregue" | "cancelado";
 
@@ -226,7 +226,13 @@ export default function PedidosManager() {
                 })}
               </p>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <a
+                  href="/admin/vendas"
+                  className="inline-flex items-center gap-1.5 text-[10px] uppercase border border-gold/40 text-gold px-3 py-2 hover:bg-gold hover:text-ink transition-colors"
+                >
+                  <ShoppingCart size={12} /> Registar venda
+                </a>
                 {pedido.estado === "pendente" && (
                   <button
                     onClick={() => mudarEstado(pedido.id, "confirmado")}

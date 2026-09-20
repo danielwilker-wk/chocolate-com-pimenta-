@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/browser-client";
-import { X, Check, ShoppingCart } from "lucide-react";
+import { X, Check, ShoppingCart, ClipboardList } from "lucide-react";
 
 type Area = "bar" | "restaurante";
 type FormaPagamento = "dinheiro" | "multicaixa";
@@ -11,9 +11,9 @@ type ItemVendavel = {
   id: string;
   nome: string;
   unidade: string;
-  area: Area;
   quantidade_atual: number;
-  preco_venda: number | null;
+  preco_venda_bar: number | null;
+  preco_venda_restaurante: number | null;
 };
 
 type Venda = {
@@ -22,8 +22,17 @@ type Venda = {
   preco_unitario: number;
   preco_total: number;
   forma_pagamento: FormaPagamento;
+  area: Area;
   criado_em: string;
-  estoque_itens: { nome: string; area: Area } | null;
+  estoque_itens: { nome: string } | null;
+};
+
+type PedidoParaConverter = {
+  id: string;
+  numero_mesa: string;
+  nome_cliente: string;
+  forma_pagamento: FormaPagamento;
+  pedido_itens: { nome_produto: string; quantidade: number }[];
 };
 
 const AREA_LABEL: Record<Area, string> = {
@@ -47,6 +56,8 @@ export default function VendasPOS() {
     null
   );
   const [responsavelId, setResponsavelId] = useState<string | null>(null);
+  const [pedidoAConverter, setPedidoAConverter] =
+    useState<PedidoParaConverter | null>(null);
 
   const carregarTudo = useCallback(async () => {
     const inicioDoDia = new Date();
@@ -55,14 +66,15 @@ export default function VendasPOS() {
     const [itensRes, vendasRes, userRes] = await Promise.all([
       supabase
         .from("estoque_itens")
-        .select("id, nome, unidade, area, quantidade_atual, preco_venda")
-        .not("area", "is", null)
+        .select(
+          "id, nome, unidade, quantidade_atual, preco_venda_bar, preco_venda_restaurante"
+        )
         .eq("ativo", true)
         .order("nome"),
       supabase
         .from("vendas")
         .select(
-          "id, quantidade, preco_unitario, preco_total, forma_pagamento, criado_em, estoque_itens(nome, area)"
+          "id, quantidade, preco_unitario, preco_total, forma_pagamento, area, criado_em, estoque_itens(nome)"
         )
         .gte("criado_em", inicioDoDia.toISOString())
         .order("criado_em", { ascending: false }),
@@ -85,7 +97,10 @@ export default function VendasPOS() {
   }, [carregarTudo]);
 
   const itensDaArea = useMemo(
-    () => itens.filter((i) => i.area === area),
+    () =>
+      itens.filter((i) =>
+        area === "bar" ? i.preco_venda_bar !== null : i.preco_venda_restaurante !== null
+      ),
     [itens, area]
   );
 
@@ -106,6 +121,10 @@ export default function VendasPOS() {
         </p>
       )}
 
+      <PedidosParaConverter
+        onEscolher={(p) => setPedidoAConverter(p)}
+      />
+
       <section>
         <div className="flex items-center gap-1 mb-8 text-xs uppercase tracking-wide">
           {(["bar", "restaurante"] as const).map((a) => (
@@ -125,28 +144,31 @@ export default function VendasPOS() {
 
         {itensDaArea.length === 0 ? (
           <p className="text-mist text-sm">
-            Ainda não há produtos vendáveis nesta área. Adiciona-os em Stock.
+            Ainda não há produtos vendáveis nesta área. Define um preço para{" "}
+            {AREA_LABEL[area].toLowerCase()} em Stock.
           </p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {itensDaArea.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setItemSelecionado(item)}
-                disabled={item.quantidade_atual <= 0}
-                className="border border-white/10 hover:border-gold p-4 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <p className="font-medium truncate">{item.nome}</p>
-                <p className="text-gold text-sm mt-1">
-                  {item.preco_venda
-                    ? `${item.preco_venda.toLocaleString("pt-PT")} Kz`
-                    : "sem preço"}
-                </p>
-                <p className="text-mist text-xs mt-1">
-                  {item.quantidade_atual} {item.unidade} em stock
-                </p>
-              </button>
-            ))}
+            {itensDaArea.map((item) => {
+              const preco =
+                area === "bar" ? item.preco_venda_bar : item.preco_venda_restaurante;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setItemSelecionado(item)}
+                  disabled={item.quantidade_atual <= 0}
+                  className="border border-white/10 hover:border-gold p-4 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <p className="font-medium truncate">{item.nome}</p>
+                  <p className="text-gold text-sm mt-1">
+                    {preco ? `${preco.toLocaleString("pt-PT")} Kz` : "sem preço"}
+                  </p>
+                  <p className="text-mist text-xs mt-1">
+                    {item.quantidade_atual} {item.unidade} em stock
+                  </p>
+                </button>
+              );
+            })}
           </div>
         )}
       </section>
@@ -172,11 +194,9 @@ export default function VendasPOS() {
               >
                 <span className="truncate">
                   {v.quantidade}x {v.estoque_itens?.nome ?? "Item removido"}
-                  {v.estoque_itens?.area && (
-                    <span className="ml-2 text-[10px] uppercase text-mist">
-                      {AREA_LABEL[v.estoque_itens.area]}
-                    </span>
-                  )}
+                  <span className="ml-2 text-[10px] uppercase text-mist">
+                    {AREA_LABEL[v.area]}
+                  </span>
                   <span className="ml-2 text-[10px] uppercase text-gold border border-gold/30 px-1.5 py-0.5">
                     {PAGAMENTO_LABEL[v.forma_pagamento]}
                   </span>
@@ -201,6 +221,7 @@ export default function VendasPOS() {
       {itemSelecionado && (
         <ModalVenda
           item={itemSelecionado}
+          area={area}
           responsavelId={responsavelId}
           onCancel={() => setItemSelecionado(null)}
           onConcluida={() => {
@@ -209,17 +230,260 @@ export default function VendasPOS() {
           }}
         />
       )}
+
+      {pedidoAConverter && (
+        <ModalConverterPedido
+          pedido={pedidoAConverter}
+          itensDisponiveis={itens}
+          responsavelId={responsavelId}
+          onCancel={() => setPedidoAConverter(null)}
+          onConcluida={() => {
+            setPedidoAConverter(null);
+            carregarTudo();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Lista pedidos das mesas (pendentes ou confirmados) que ainda não foram
+ * registados como venda, para o staff poder abri-los diretamente aqui.
+ */
+function PedidosParaConverter({
+  onEscolher,
+}: {
+  onEscolher: (pedido: PedidoParaConverter) => void;
+}) {
+  const supabase = createClient();
+  const [pedidos, setPedidos] = useState<PedidoParaConverter[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function carregar() {
+      const { data } = await supabase
+        .from("pedidos")
+        .select(
+          "id, numero_mesa, nome_cliente, forma_pagamento, pedido_itens(nome_produto, quantidade)"
+        )
+        .in("estado", ["pendente", "confirmado"])
+        .eq("arquivado", false)
+        .order("criado_em", { ascending: false });
+      setPedidos((data as unknown as PedidoParaConverter[]) ?? []);
+      setLoading(false);
+    }
+    carregar();
+  }, [supabase]);
+
+  if (loading || pedidos.length === 0) return null;
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-4">
+        <ClipboardList size={18} className="text-gold" />
+        <h2 className="font-display text-xl">Pedidos das mesas por registar</h2>
+      </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {pedidos.map((pedido) => (
+          <button
+            key={pedido.id}
+            onClick={() => onEscolher(pedido)}
+            className="border border-gold/30 hover:border-gold p-4 text-left transition-colors"
+          >
+            <p className="font-display">
+              Mesa {pedido.numero_mesa} — {pedido.nome_cliente}
+            </p>
+            <p className="text-mist text-xs mt-1">
+              {pedido.pedido_itens.length}{" "}
+              {pedido.pedido_itens.length === 1 ? "item" : "itens"}
+            </p>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Modal para converter um pedido de mesa numa venda real no PDV: liga cada
+ * item do pedido a um item de stock (por nome), pergunta a área, e regista
+ * a venda descontando o stock — depois marca o pedido como entregue.
+ */
+function ModalConverterPedido({
+  pedido,
+  itensDisponiveis,
+  responsavelId,
+  onCancel,
+  onConcluida,
+}: {
+  pedido: PedidoParaConverter;
+  itensDisponiveis: ItemVendavel[];
+  responsavelId: string | null;
+  onCancel: () => void;
+  onConcluida: () => void;
+}) {
+  const supabase = createClient();
+  const [area, setArea] = useState<Area>("restaurante");
+  const [guardando, setGuardando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  // Tenta encontrar, por nome, o item de stock correspondente a cada linha
+  // do pedido. Itens sem correspondência ficam assinalados e são ignorados
+  // no desconto de stock, mas o staff é avisado.
+  const linhas = pedido.pedido_itens.map((li) => {
+    const itemStock = itensDisponiveis.find(
+      (i) => i.nome.toLowerCase() === li.nome_produto.toLowerCase()
+    );
+    const preco = itemStock
+      ? area === "bar"
+        ? itemStock.preco_venda_bar
+        : itemStock.preco_venda_restaurante
+      : null;
+    return { ...li, itemStock, preco };
+  });
+
+  const semCorrespondencia = linhas.filter((l) => !l.itemStock);
+  const total = linhas.reduce(
+    (soma, l) => soma + (l.preco ?? 0) * l.quantidade,
+    0
+  );
+
+  async function confirmar() {
+    setGuardando(true);
+    setErro("");
+
+    const linhasValidas = linhas.filter((l) => l.itemStock && l.preco !== null);
+
+    if (linhasValidas.length > 0) {
+      const { error: erroVendas } = await supabase.from("vendas").insert(
+        linhasValidas.map((l) => ({
+          item_id: l.itemStock!.id,
+          area,
+          quantidade: l.quantidade,
+          preco_unitario: l.preco!,
+          preco_total: l.preco! * l.quantidade,
+          forma_pagamento: pedido.forma_pagamento,
+          valor_pago: l.preco! * l.quantidade,
+          troco: 0,
+          responsavel_id: responsavelId,
+        }))
+      );
+
+      if (erroVendas) {
+        setErro("Não foi possível registar a venda.");
+        setGuardando(false);
+        return;
+      }
+    }
+
+    // Marca o pedido como entregue, já que a venda foi registada
+    await supabase
+      .from("pedidos")
+      .update({ estado: "entregue" })
+      .eq("id", pedido.id);
+
+    setGuardando(false);
+    onConcluida();
+  }
+
+  return (
+    <div className="fixed inset-0 bg-ink/90 flex items-center justify-center p-6 z-50">
+      <div className="bg-ink-soft border border-gold/30 max-w-md w-full p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-xl">
+            Mesa {pedido.numero_mesa} — {pedido.nome_cliente}
+          </h3>
+          <button onClick={onCancel} className="text-mist hover:text-paper">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div>
+          <label className="text-mist text-xs uppercase tracking-wide mb-1 block">
+            Registar venda em
+          </label>
+          <div className="flex gap-1">
+            {(["bar", "restaurante"] as const).map((a) => (
+              <button
+                key={a}
+                onClick={() => setArea(a)}
+                className={`flex-1 px-3 py-2 text-xs uppercase border ${
+                  area === a
+                    ? "bg-gold text-ink border-gold font-semibold"
+                    : "border-white/15 text-mist hover:text-paper"
+                }`}
+              >
+                {AREA_LABEL[a]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2 border-t border-white/10 pt-3">
+          {linhas.map((l, i) => (
+            <div key={i} className="flex justify-between text-sm">
+              <span className={!l.itemStock ? "text-red-400" : ""}>
+                {l.quantidade}x {l.nome_produto}
+                {!l.itemStock && " (sem item de stock correspondente)"}
+              </span>
+              <span className="text-gold">
+                {l.preco ? `${(l.preco * l.quantidade).toLocaleString("pt-PT")} Kz` : "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {semCorrespondencia.length > 0 && (
+          <p className="text-red-400 text-xs">
+            {semCorrespondencia.length}{" "}
+            {semCorrespondencia.length === 1 ? "item não foi" : "itens não foram"}{" "}
+            encontrados no stock com este nome exato e não serão descontados.
+            Podes ajustar o stock manualmente depois.
+          </p>
+        )}
+
+        <div className="flex items-center justify-between text-base font-medium border-t border-white/10 pt-3">
+          <span>Total a registar</span>
+          <span className="text-gold">{total.toLocaleString("pt-PT")} Kz</span>
+        </div>
+
+        <p className="text-mist text-xs">
+          Pagamento: {PAGAMENTO_LABEL[pedido.forma_pagamento]}
+        </p>
+
+        {erro && <p className="text-red-400 text-xs">{erro}</p>}
+
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={confirmar}
+            disabled={guardando}
+            className="flex-1 inline-flex items-center justify-center gap-1 bg-gold text-ink px-4 py-2.5 text-xs uppercase font-semibold disabled:opacity-60"
+          >
+            <Check size={14} />{" "}
+            {guardando ? "A registar..." : "Registar venda e marcar entregue"}
+          </button>
+          <button
+            onClick={onCancel}
+            className="inline-flex items-center gap-1 border border-white/20 px-4 py-2.5 text-xs uppercase text-mist"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 function ModalVenda({
   item,
+  area,
   responsavelId,
   onCancel,
   onConcluida,
 }: {
   item: ItemVendavel;
+  area: Area;
   responsavelId: string | null;
   onCancel: () => void;
   onConcluida: () => void;
@@ -232,7 +496,8 @@ function ModalVenda({
   const [guardando, setGuardando] = useState(false);
   const [erro, setErro] = useState("");
 
-  const precoUnitario = item.preco_venda ?? 0;
+  const precoUnitario =
+    (area === "bar" ? item.preco_venda_bar : item.preco_venda_restaurante) ?? 0;
   const qtd = Number(quantidade) || 0;
   const precoTotal = precoUnitario * qtd;
   const pago =
@@ -260,7 +525,7 @@ function ModalVenda({
     setErro("");
     const { error } = await supabase.from("vendas").insert({
       item_id: item.id,
-      area: item.area,
+      area,
       quantidade: qtd,
       preco_unitario: precoUnitario,
       preco_total: precoTotal,
@@ -289,6 +554,10 @@ function ModalVenda({
             <X size={18} />
           </button>
         </div>
+
+        <p className="text-mist text-xs uppercase tracking-wide">
+          A vender em: <span className="text-gold">{AREA_LABEL[area]}</span>
+        </p>
 
         <div>
           <label className="text-mist text-xs uppercase tracking-wide">

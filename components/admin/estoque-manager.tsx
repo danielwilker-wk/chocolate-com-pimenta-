@@ -12,18 +12,17 @@ import {
   PackagePlus,
   PackageMinus,
 } from "lucide-react";
-
-type Area = "bar" | "restaurante" | null;
+import SincronizarMenu from "./sincronizar-menu";
 
 type ItemEstoque = {
   id: string;
   nome: string;
   unidade: string;
   categoria: string | null;
-  area: Area;
   quantidade_atual: number;
   estoque_minimo: number;
-  preco_venda: number | null;
+  preco_venda_bar: number | null;
+  preco_venda_restaurante: number | null;
   ativo: boolean;
 };
 
@@ -37,11 +36,6 @@ type Movimento = {
   estoque_itens: { nome: string } | null;
 };
 
-const AREA_LABEL: Record<string, string> = {
-  bar: "Bar",
-  restaurante: "Restaurante",
-};
-
 export default function EstoqueManager() {
   const supabase = createClient();
   const [itens, setItens] = useState<ItemEstoque[]>([]);
@@ -49,8 +43,8 @@ export default function EstoqueManager() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [aCriar, setACriar] = useState(false);
-  const [filtroArea, setFiltroArea] = useState<
-    "todos" | "bar" | "restaurante" | "interno"
+  const [filtroDisponibilidade, setFiltroDisponibilidade] = useState<
+    "todos" | "bar" | "restaurante" | "ambos"
   >("todos");
 
   const carregarTudo = useCallback(async () => {
@@ -84,9 +78,13 @@ export default function EstoqueManager() {
   }
 
   const itensFiltrados = itens.filter((item) => {
-    if (filtroArea === "todos") return true;
-    if (filtroArea === "interno") return !item.area;
-    return item.area === filtroArea;
+    const temBar = item.preco_venda_bar !== null;
+    const temRestaurante = item.preco_venda_restaurante !== null;
+    if (filtroDisponibilidade === "todos") return true;
+    if (filtroDisponibilidade === "bar") return temBar;
+    if (filtroDisponibilidade === "restaurante") return temRestaurante;
+    if (filtroDisponibilidade === "ambos") return temBar && temRestaurante;
+    return true;
   });
 
   return (
@@ -97,29 +95,37 @@ export default function EstoqueManager() {
         </p>
       )}
 
+      <div className="bg-ink-soft border border-gold/20 px-4 py-3 text-sm text-mist max-w-2xl">
+        O stock é partilhado entre bar e restaurante — a mesma unidade física
+        conta para os dois. Define um preço de venda para cada área onde o
+        item é vendido; deixa em branco a área onde não se vende.
+      </div>
+
+      <SincronizarMenu onSincronizado={carregarTudo} />
+
       <section>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <h2 className="font-display text-2xl">Itens de Stock</h2>
           <div className="flex gap-1 text-xs uppercase tracking-wide">
-            {(["todos", "bar", "restaurante", "interno"] as const).map(
-              (f) => (
-                <button
-                  key={f}
-                  onClick={() => setFiltroArea(f)}
-                  className={`px-3 py-1.5 border ${
-                    filtroArea === f
-                      ? "bg-gold text-ink border-gold font-semibold"
-                      : "border-white/15 text-mist hover:text-paper"
-                  }`}
-                >
-                  {f === "todos"
-                    ? "Todos"
-                    : f === "interno"
-                      ? "Insumos"
-                      : AREA_LABEL[f]}
-                </button>
-              )
-            )}
+            {(["todos", "bar", "restaurante", "ambos"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFiltroDisponibilidade(f)}
+                className={`px-3 py-1.5 border ${
+                  filtroDisponibilidade === f
+                    ? "bg-gold text-ink border-gold font-semibold"
+                    : "border-white/15 text-mist hover:text-paper"
+                }`}
+              >
+                {f === "todos"
+                  ? "Todos"
+                  : f === "ambos"
+                    ? "Bar + Restaurante"
+                    : f === "bar"
+                      ? "Bar"
+                      : "Restaurante"}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -217,12 +223,14 @@ function ItemRow({
   const [nome, setNome] = useState(item.nome);
   const [unidade, setUnidade] = useState(item.unidade);
   const [categoria, setCategoria] = useState(item.categoria ?? "");
-  const [area, setArea] = useState<string>(item.area ?? "");
   const [estoqueMinimo, setEstoqueMinimo] = useState(
     item.estoque_minimo.toString()
   );
-  const [precoVenda, setPrecoVenda] = useState(
-    item.preco_venda?.toString() ?? ""
+  const [precoBar, setPrecoBar] = useState(
+    item.preco_venda_bar?.toString() ?? ""
+  );
+  const [precoRestaurante, setPrecoRestaurante] = useState(
+    item.preco_venda_restaurante?.toString() ?? ""
   );
 
   const abaixoDoMinimo = item.quantidade_atual <= item.estoque_minimo;
@@ -234,9 +242,11 @@ function ItemRow({
         nome: nome.trim(),
         unidade: unidade.trim(),
         categoria: categoria.trim() || null,
-        area: area || null,
         estoque_minimo: Number(estoqueMinimo) || 0,
-        preco_venda: precoVenda ? Number(precoVenda) : null,
+        preco_venda_bar: precoBar ? Number(precoBar) : null,
+        preco_venda_restaurante: precoRestaurante
+          ? Number(precoRestaurante)
+          : null,
       })
       .eq("id", item.id);
     setEditando(false);
@@ -298,15 +308,6 @@ function ItemRow({
             className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
             placeholder="Categoria (opcional)"
           />
-          <select
-            value={area}
-            onChange={(e) => setArea(e.target.value)}
-            className="bg-ink border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
-          >
-            <option value="">Insumo interno (não vendável)</option>
-            <option value="bar">Bar</option>
-            <option value="restaurante">Restaurante</option>
-          </select>
           <input
             value={estoqueMinimo}
             onChange={(e) => setEstoqueMinimo(e.target.value)}
@@ -314,13 +315,30 @@ function ItemRow({
             className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
             placeholder="Stock mínimo"
           />
-          <input
-            value={precoVenda}
-            onChange={(e) => setPrecoVenda(e.target.value)}
-            type="number"
-            className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
-            placeholder="Preço de venda em Kz"
-          />
+          <div>
+            <label className="text-mist text-xs uppercase tracking-wide block mb-1">
+              Preço no Bar (Kz)
+            </label>
+            <input
+              value={precoBar}
+              onChange={(e) => setPrecoBar(e.target.value)}
+              type="number"
+              className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
+              placeholder="Vazio = não vende no bar"
+            />
+          </div>
+          <div>
+            <label className="text-mist text-xs uppercase tracking-wide block mb-1">
+              Preço no Restaurante (Kz)
+            </label>
+            <input
+              value={precoRestaurante}
+              onChange={(e) => setPrecoRestaurante(e.target.value)}
+              type="number"
+              className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
+              placeholder="Vazio = não vende no restaurante"
+            />
+          </div>
         </div>
         <div className="flex gap-2">
           <button
@@ -355,11 +373,6 @@ function ItemRow({
             className={`font-medium truncate ${!item.ativo ? "text-mist line-through" : ""}`}
           >
             {item.nome}
-            {item.area && (
-              <span className="ml-2 text-[10px] uppercase text-gold border border-gold/40 px-1.5 py-0.5">
-                {AREA_LABEL[item.area]}
-              </span>
-            )}
           </p>
           <p className="text-mist text-xs truncate">
             {item.quantidade_atual} {item.unidade} em stock
@@ -368,11 +381,18 @@ function ItemRow({
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {item.preco_venda !== null && (
-          <span className="text-gold text-sm">
-            {item.preco_venda.toLocaleString("pt-PT")} Kz
-          </span>
-        )}
+        <div className="flex gap-1.5 text-xs">
+          {item.preco_venda_bar !== null && (
+            <span className="text-gold border border-gold/30 px-1.5 py-0.5">
+              Bar {item.preco_venda_bar.toLocaleString("pt-PT")} Kz
+            </span>
+          )}
+          {item.preco_venda_restaurante !== null && (
+            <span className="text-gold border border-gold/30 px-1.5 py-0.5">
+              Rest. {item.preco_venda_restaurante.toLocaleString("pt-PT")} Kz
+            </span>
+          )}
+        </div>
         <button
           onClick={() => setMovimentando("entrada")}
           aria-label="Registar entrada"
@@ -515,10 +535,10 @@ function NovoItemForm({
   const [nome, setNome] = useState("");
   const [unidade, setUnidade] = useState("un");
   const [categoria, setCategoria] = useState("");
-  const [area, setArea] = useState("");
   const [quantidadeInicial, setQuantidadeInicial] = useState("0");
   const [estoqueMinimo, setEstoqueMinimo] = useState("0");
-  const [precoVenda, setPrecoVenda] = useState("");
+  const [precoBar, setPrecoBar] = useState("");
+  const [precoRestaurante, setPrecoRestaurante] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -533,10 +553,12 @@ function NovoItemForm({
       nome: nome.trim(),
       unidade: unidade.trim(),
       categoria: categoria.trim() || null,
-      area: area || null,
       quantidade_atual: Number(quantidadeInicial) || 0,
       estoque_minimo: Number(estoqueMinimo) || 0,
-      preco_venda: precoVenda ? Number(precoVenda) : null,
+      preco_venda_bar: precoBar ? Number(precoBar) : null,
+      preco_venda_restaurante: precoRestaurante
+        ? Number(precoRestaurante)
+        : null,
     });
     setGuardando(false);
     if (error) {
@@ -568,15 +590,6 @@ function NovoItemForm({
           className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
           placeholder="Categoria (opcional)"
         />
-        <select
-          value={area}
-          onChange={(e) => setArea(e.target.value)}
-          className="bg-ink border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
-        >
-          <option value="">Insumo interno (não vendável)</option>
-          <option value="bar">Bar</option>
-          <option value="restaurante">Restaurante</option>
-        </select>
         <input
           value={quantidadeInicial}
           onChange={(e) => setQuantidadeInicial(e.target.value)}
@@ -588,16 +601,33 @@ function NovoItemForm({
           value={estoqueMinimo}
           onChange={(e) => setEstoqueMinimo(e.target.value)}
           type="number"
-          className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
+          className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none col-span-2"
           placeholder="Stock mínimo (alerta)"
         />
-        <input
-          value={precoVenda}
-          onChange={(e) => setPrecoVenda(e.target.value)}
-          type="number"
-          className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none col-span-2"
-          placeholder="Preço de venda em Kz (se for vendável)"
-        />
+        <div>
+          <label className="text-mist text-xs uppercase tracking-wide block mb-1">
+            Preço no Bar (Kz)
+          </label>
+          <input
+            value={precoBar}
+            onChange={(e) => setPrecoBar(e.target.value)}
+            type="number"
+            className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
+            placeholder="Vazio = não vende no bar"
+          />
+        </div>
+        <div>
+          <label className="text-mist text-xs uppercase tracking-wide block mb-1">
+            Preço no Restaurante (Kz)
+          </label>
+          <input
+            value={precoRestaurante}
+            onChange={(e) => setPrecoRestaurante(e.target.value)}
+            type="number"
+            className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
+            placeholder="Vazio = não vende no restaurante"
+          />
+        </div>
       </div>
       {erro && <p className="text-red-400 text-xs">{erro}</p>}
       <div className="flex gap-2">
