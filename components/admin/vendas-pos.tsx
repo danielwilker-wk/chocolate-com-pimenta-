@@ -3,7 +3,14 @@
 import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser-client";
-import { X, Check, ShoppingCart, ClipboardList } from "lucide-react";
+import {
+  X,
+  Check,
+  ShoppingCart,
+  ClipboardList,
+  Plus,
+  Minus,
+} from "lucide-react";
 
 type Area = "bar" | "restaurante";
 type FormaPagamento = "dinheiro" | "multicaixa";
@@ -16,6 +23,11 @@ type ItemVendavel = {
   preco_venda_bar: number | null;
   preco_venda_restaurante: number | null;
   controla_stock: boolean;
+};
+
+type LinhaCarrinho = {
+  item: ItemVendavel;
+  quantidade: number;
 };
 
 type Venda = {
@@ -68,9 +80,8 @@ function VendasPOSConteudo() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [area, setArea] = useState<Area>("bar");
-  const [itemSelecionado, setItemSelecionado] = useState<ItemVendavel | null>(
-    null
-  );
+  const [carrinho, setCarrinho] = useState<LinhaCarrinho[]>([]);
+  const [carrinhoAberto, setCarrinhoAberto] = useState(false);
   const [responsavelId, setResponsavelId] = useState<string | null>(null);
   const [pedidoAConverter, setPedidoAConverter] =
     useState<PedidoParaConverter | null>(null);
@@ -125,12 +136,50 @@ function VendasPOSConteudo() {
     [vendasHoje]
   );
 
+  function precoDoItem(item: ItemVendavel) {
+    return (area === "bar" ? item.preco_venda_bar : item.preco_venda_restaurante) ?? 0;
+  }
+
+  function adicionarAoCarrinho(item: ItemVendavel) {
+    setCarrinho((prev) => {
+      const existente = prev.find((l) => l.item.id === item.id);
+      if (existente) {
+        return prev.map((l) =>
+          l.item.id === item.id ? { ...l, quantidade: l.quantidade + 1 } : l
+        );
+      }
+      return [...prev, { item, quantidade: 1 }];
+    });
+  }
+
+  function alterarQuantidade(itemId: string, delta: number) {
+    setCarrinho((prev) =>
+      prev
+        .map((l) =>
+          l.item.id === itemId
+            ? { ...l, quantidade: l.quantidade + delta }
+            : l
+        )
+        .filter((l) => l.quantidade > 0)
+    );
+  }
+
+  function removerDoCarrinho(itemId: string) {
+    setCarrinho((prev) => prev.filter((l) => l.item.id !== itemId));
+  }
+
+  const quantidadeCarrinho = carrinho.reduce((s, l) => s + l.quantidade, 0);
+  const totalCarrinho = carrinho.reduce(
+    (s, l) => s + precoDoItem(l.item) * l.quantidade,
+    0
+  );
+
   if (loading) {
     return <p className="text-mist">A carregar...</p>;
   }
 
   return (
-    <div className="space-y-16">
+    <div className="space-y-16 pb-20">
       {erro && (
         <p className="text-red-400 text-sm bg-red-950/30 border border-red-900/50 px-4 py-3">
           {erro}
@@ -167,16 +216,27 @@ function VendasPOSConteudo() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {itensDaArea.map((item) => {
-              const preco =
-                area === "bar" ? item.preco_venda_bar : item.preco_venda_restaurante;
+              const preco = precoDoItem(item);
+              const noCarrinho = carrinho.find((l) => l.item.id === item.id);
+              const semStockDisponivel =
+                item.controla_stock && item.quantidade_atual <= 0;
               return (
                 <button
                   key={item.id}
-                  onClick={() => setItemSelecionado(item)}
-                  disabled={item.controla_stock && item.quantidade_atual <= 0}
-                  className="border border-white/10 hover:border-gold p-4 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  onClick={() => adicionarAoCarrinho(item)}
+                  disabled={semStockDisponivel}
+                  className={`relative border p-4 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    noCarrinho
+                      ? "border-gold bg-gold/10"
+                      : "border-white/10 hover:border-gold"
+                  }`}
                 >
-                  <p className="font-medium truncate">{item.nome}</p>
+                  {noCarrinho && (
+                    <span className="absolute top-2 right-2 bg-gold text-ink text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                      {noCarrinho.quantidade}
+                    </span>
+                  )}
+                  <p className="font-medium truncate pr-6">{item.nome}</p>
                   <p className="text-gold text-sm mt-1">
                     {preco ? `${preco.toLocaleString("pt-PT")} Kz` : "sem preço"}
                   </p>
@@ -197,7 +257,7 @@ function VendasPOSConteudo() {
           <h2 className="font-display text-2xl">Vendas de hoje</h2>
           <p className="text-gold text-sm">
             Total: {totalHoje.toLocaleString("pt-PT")} Kz ({vendasHoje.length}{" "}
-            vendas)
+            linhas)
           </p>
         </div>
         {vendasHoje.length === 0 ? (
@@ -237,14 +297,31 @@ function VendasPOSConteudo() {
         )}
       </section>
 
-      {itemSelecionado && (
-        <ModalVenda
-          item={itemSelecionado}
+      {/* Barra flutuante do carrinho */}
+      {quantidadeCarrinho > 0 && !carrinhoAberto && (
+        <button
+          onClick={() => setCarrinhoAberto(true)}
+          className="fixed bottom-6 right-6 z-40 bg-gold text-ink px-5 py-3.5 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.4)] flex items-center gap-2.5 hover:bg-white transition-colors"
+        >
+          <ShoppingCart size={18} />
+          <span className="text-sm font-semibold">
+            {quantidadeCarrinho} · {totalCarrinho.toLocaleString("pt-PT")} Kz
+          </span>
+        </button>
+      )}
+
+      {carrinhoAberto && (
+        <ModalCarrinho
+          carrinho={carrinho}
           area={area}
           responsavelId={responsavelId}
-          onCancel={() => setItemSelecionado(null)}
+          precoDoItem={precoDoItem}
+          onAlterarQuantidade={alterarQuantidade}
+          onRemover={removerDoCarrinho}
+          onCancel={() => setCarrinhoAberto(false)}
           onConcluida={() => {
-            setItemSelecionado(null);
+            setCarrinho([]);
+            setCarrinhoAberto(false);
             carregarTudo();
           }}
         />
@@ -383,6 +460,25 @@ function ModalConverterPedido({
     const linhasValidas = linhas.filter((l) => l.itemStock && l.preco !== null);
 
     if (linhasValidas.length > 0) {
+      const { data: transacao, error: erroTransacao } = await supabase
+        .from("vendas_transacoes")
+        .insert({
+          area,
+          forma_pagamento: pedido.forma_pagamento,
+          total,
+          valor_pago: total,
+          troco: 0,
+          responsavel_id: responsavelId,
+        })
+        .select()
+        .single();
+
+      if (erroTransacao || !transacao) {
+        setErro("Não foi possível registar a venda.");
+        setGuardando(false);
+        return;
+      }
+
       const { error: erroVendas } = await supabase.from("vendas").insert(
         linhasValidas.map((l) => ({
           item_id: l.itemStock!.id,
@@ -394,6 +490,7 @@ function ModalConverterPedido({
           valor_pago: l.preco! * l.quantidade,
           troco: 0,
           responsavel_id: responsavelId,
+          transacao_id: transacao.id,
         }))
       );
 
@@ -501,102 +598,168 @@ function ModalConverterPedido({
   );
 }
 
-function ModalVenda({
-  item,
+/**
+ * Modal do carrinho: mostra todos os produtos escolhidos (pode ser um só
+ * ou vários), permite ajustar quantidades, escolher um único método de
+ * pagamento, e regista tudo como UMA venda (uma transação, um troco).
+ */
+function ModalCarrinho({
+  carrinho,
   area,
   responsavelId,
+  precoDoItem,
+  onAlterarQuantidade,
+  onRemover,
   onCancel,
   onConcluida,
 }: {
-  item: ItemVendavel;
+  carrinho: LinhaCarrinho[];
   area: Area;
   responsavelId: string | null;
+  precoDoItem: (item: ItemVendavel) => number;
+  onAlterarQuantidade: (itemId: string, delta: number) => void;
+  onRemover: (itemId: string) => void;
   onCancel: () => void;
   onConcluida: () => void;
 }) {
   const supabase = createClient();
-  const [quantidade, setQuantidade] = useState("1");
   const [formaPagamento, setFormaPagamento] =
     useState<FormaPagamento>("dinheiro");
   const [valorPago, setValorPago] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [erro, setErro] = useState("");
 
-  const precoUnitario =
-    (area === "bar" ? item.preco_venda_bar : item.preco_venda_restaurante) ?? 0;
-  const qtd = Number(quantidade) || 0;
-  const precoTotal = precoUnitario * qtd;
+  const total = carrinho.reduce(
+    (s, l) => s + precoDoItem(l.item) * l.quantidade,
+    0
+  );
   const pago =
     formaPagamento === "multicaixa"
-      ? precoTotal
+      ? total
       : valorPago === ""
-        ? precoTotal
+        ? total
         : Number(valorPago);
-  const troco = pago - precoTotal;
+  const troco = pago - total;
 
   async function confirmar() {
-    if (!qtd || qtd <= 0) {
-      setErro("Indica uma quantidade válida.");
+    if (carrinho.length === 0) {
+      setErro("O carrinho está vazio.");
       return;
     }
-    if (item.controla_stock && qtd > item.quantidade_atual) {
-      setErro(`Só há ${item.quantidade_atual} ${item.unidade} em stock.`);
-      return;
+    for (const linha of carrinho) {
+      if (
+        linha.item.controla_stock &&
+        linha.quantidade > linha.item.quantidade_atual
+      ) {
+        setErro(
+          `Só há ${linha.item.quantidade_atual} ${linha.item.unidade} de ${linha.item.nome} em stock.`
+        );
+        return;
+      }
     }
-    if (pago < precoTotal) {
+    if (pago < total) {
       setErro("O valor pago é menor que o total da venda.");
       return;
     }
+
     setGuardando(true);
     setErro("");
-    const { error } = await supabase.from("vendas").insert({
-      item_id: item.id,
-      area,
-      quantidade: qtd,
-      preco_unitario: precoUnitario,
-      preco_total: precoTotal,
-      forma_pagamento: formaPagamento,
-      valor_pago: pago,
-      troco: formaPagamento === "multicaixa" ? 0 : troco,
-      responsavel_id: responsavelId,
-    });
-    setGuardando(false);
-    if (error) {
+
+    const { data: transacao, error: erroTransacao } = await supabase
+      .from("vendas_transacoes")
+      .insert({
+        area,
+        forma_pagamento: formaPagamento,
+        total,
+        valor_pago: pago,
+        troco: formaPagamento === "multicaixa" ? 0 : troco,
+        responsavel_id: responsavelId,
+      })
+      .select()
+      .single();
+
+    if (erroTransacao || !transacao) {
       setErro("Não foi possível registar a venda.");
+      setGuardando(false);
       return;
     }
+
+    const { error: erroVendas } = await supabase.from("vendas").insert(
+      carrinho.map((linha) => ({
+        item_id: linha.item.id,
+        area,
+        quantidade: linha.quantidade,
+        preco_unitario: precoDoItem(linha.item),
+        preco_total: precoDoItem(linha.item) * linha.quantidade,
+        forma_pagamento: formaPagamento,
+        valor_pago: precoDoItem(linha.item) * linha.quantidade,
+        troco: 0,
+        responsavel_id: responsavelId,
+        transacao_id: transacao.id,
+      }))
+    );
+
+    setGuardando(false);
+
+    if (erroVendas) {
+      setErro("Não foi possível registar os itens da venda.");
+      return;
+    }
+
     onConcluida();
   }
 
   return (
     <div className="fixed inset-0 bg-ink/90 flex items-center justify-center p-6 z-50">
-      <div className="bg-ink-soft border border-gold/30 max-w-sm w-full p-6 space-y-4">
+      <div className="bg-ink-soft border border-gold/30 max-w-sm w-full p-6 space-y-4 max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-xl flex items-center gap-2">
             <ShoppingCart size={18} className="text-gold" />
-            {item.nome}
+            Carrinho — {AREA_LABEL[area]}
           </h3>
           <button onClick={onCancel} className="text-mist hover:text-paper">
             <X size={18} />
           </button>
         </div>
 
-        <p className="text-mist text-xs uppercase tracking-wide">
-          A vender em: <span className="text-gold">{AREA_LABEL[area]}</span>
-        </p>
-
-        <div>
-          <label className="text-mist text-xs uppercase tracking-wide">
-            Quantidade
-          </label>
-          <input
-            value={quantidade}
-            onChange={(e) => setQuantidade(e.target.value)}
-            type="number"
-            min="1"
-            autoFocus
-            className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none mt-1"
-          />
+        <div className="space-y-3">
+          {carrinho.map((linha) => (
+            <div
+              key={linha.item.id}
+              className="flex items-center justify-between gap-3"
+            >
+              <div className="min-w-0">
+                <p className="text-sm truncate">{linha.item.nome}</p>
+                <p className="text-gold text-xs">
+                  {precoDoItem(linha.item).toLocaleString("pt-PT")} Kz
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => onAlterarQuantidade(linha.item.id, -1)}
+                  className="w-6 h-6 flex items-center justify-center border border-white/20 text-mist hover:text-paper"
+                >
+                  <Minus size={11} />
+                </button>
+                <span className="text-sm w-4 text-center">
+                  {linha.quantidade}
+                </span>
+                <button
+                  onClick={() => onAlterarQuantidade(linha.item.id, 1)}
+                  className="w-6 h-6 flex items-center justify-center border border-white/20 text-mist hover:text-paper"
+                >
+                  <Plus size={11} />
+                </button>
+                <button
+                  onClick={() => onRemover(linha.item.id)}
+                  aria-label="Remover item"
+                  className="text-mist hover:text-red-400 ml-1"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
         <div>
@@ -620,15 +783,9 @@ function ModalVenda({
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-sm border-t border-white/10 pt-3">
-          <span className="text-mist">Preço unitário</span>
-          <span>{precoUnitario.toLocaleString("pt-PT")} Kz</span>
-        </div>
-        <div className="flex items-center justify-between text-base font-medium">
+        <div className="flex items-center justify-between text-base font-medium border-t border-white/10 pt-3">
           <span>Total a pagar</span>
-          <span className="text-gold">
-            {precoTotal.toLocaleString("pt-PT")} Kz
-          </span>
+          <span className="text-gold">{total.toLocaleString("pt-PT")} Kz</span>
         </div>
 
         {formaPagamento === "dinheiro" && (
@@ -641,7 +798,7 @@ function ModalVenda({
                 value={valorPago}
                 onChange={(e) => setValorPago(e.target.value)}
                 type="number"
-                placeholder={precoTotal.toString()}
+                placeholder={total.toString()}
                 className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none mt-1"
               />
             </div>
@@ -660,7 +817,7 @@ function ModalVenda({
         <div className="flex gap-2 pt-2">
           <button
             onClick={confirmar}
-            disabled={guardando}
+            disabled={guardando || carrinho.length === 0}
             className="flex-1 inline-flex items-center justify-center gap-1 bg-gold text-ink px-4 py-2.5 text-xs uppercase font-semibold disabled:opacity-60"
           >
             <Check size={14} /> {guardando ? "A registar..." : "Finalizar venda"}
