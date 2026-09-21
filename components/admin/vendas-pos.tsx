@@ -1,16 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/browser-client";
-import {
-  X,
-  Check,
-  ShoppingCart,
-  ClipboardList,
-  Plus,
-  Minus,
-} from "lucide-react";
+import { X, Check, ShoppingCart, ClipboardList } from "lucide-react";
 
 type Area = "bar" | "restaurante";
 type FormaPagamento = "dinheiro" | "multicaixa";
@@ -22,12 +14,6 @@ type ItemVendavel = {
   quantidade_atual: number;
   preco_venda_bar: number | null;
   preco_venda_restaurante: number | null;
-  controla_stock: boolean;
-};
-
-type LinhaCarrinho = {
-  item: ItemVendavel;
-  quantidade: number;
 };
 
 type Venda = {
@@ -59,29 +45,16 @@ const PAGAMENTO_LABEL: Record<FormaPagamento, string> = {
   multicaixa: "Multicaixa",
 };
 
-// A leitura do URL (?pedido=) usa useSearchParams, que em Next.js exige uma
-// fronteira Suspense — este wrapper existe só para isso; a lógica real
-// mantém-se toda em VendasPOSConteudo.
 export default function VendasPOS() {
-  return (
-    <Suspense fallback={<p className="text-mist">A carregar...</p>}>
-      <VendasPOSConteudo />
-    </Suspense>
-  );
-}
-
-function VendasPOSConteudo() {
   const supabase = createClient();
-  const searchParams = useSearchParams();
-  const pedidoIdParam = searchParams.get("pedido");
-
   const [itens, setItens] = useState<ItemVendavel[]>([]);
   const [vendasHoje, setVendasHoje] = useState<Venda[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [area, setArea] = useState<Area>("bar");
-  const [carrinho, setCarrinho] = useState<LinhaCarrinho[]>([]);
-  const [carrinhoAberto, setCarrinhoAberto] = useState(false);
+  const [itemSelecionado, setItemSelecionado] = useState<ItemVendavel | null>(
+    null
+  );
   const [responsavelId, setResponsavelId] = useState<string | null>(null);
   const [pedidoAConverter, setPedidoAConverter] =
     useState<PedidoParaConverter | null>(null);
@@ -94,7 +67,7 @@ function VendasPOSConteudo() {
       supabase
         .from("estoque_itens")
         .select(
-          "id, nome, unidade, quantidade_atual, preco_venda_bar, preco_venda_restaurante, controla_stock"
+          "id, nome, unidade, quantidade_atual, preco_venda_bar, preco_venda_restaurante"
         )
         .eq("ativo", true)
         .order("nome"),
@@ -136,50 +109,12 @@ function VendasPOSConteudo() {
     [vendasHoje]
   );
 
-  function precoDoItem(item: ItemVendavel) {
-    return (area === "bar" ? item.preco_venda_bar : item.preco_venda_restaurante) ?? 0;
-  }
-
-  function adicionarAoCarrinho(item: ItemVendavel) {
-    setCarrinho((prev) => {
-      const existente = prev.find((l) => l.item.id === item.id);
-      if (existente) {
-        return prev.map((l) =>
-          l.item.id === item.id ? { ...l, quantidade: l.quantidade + 1 } : l
-        );
-      }
-      return [...prev, { item, quantidade: 1 }];
-    });
-  }
-
-  function alterarQuantidade(itemId: string, delta: number) {
-    setCarrinho((prev) =>
-      prev
-        .map((l) =>
-          l.item.id === itemId
-            ? { ...l, quantidade: l.quantidade + delta }
-            : l
-        )
-        .filter((l) => l.quantidade > 0)
-    );
-  }
-
-  function removerDoCarrinho(itemId: string) {
-    setCarrinho((prev) => prev.filter((l) => l.item.id !== itemId));
-  }
-
-  const quantidadeCarrinho = carrinho.reduce((s, l) => s + l.quantidade, 0);
-  const totalCarrinho = carrinho.reduce(
-    (s, l) => s + precoDoItem(l.item) * l.quantidade,
-    0
-  );
-
   if (loading) {
     return <p className="text-mist">A carregar...</p>;
   }
 
   return (
-    <div className="space-y-16 pb-20">
+    <div className="space-y-16">
       {erro && (
         <p className="text-red-400 text-sm bg-red-950/30 border border-red-900/50 px-4 py-3">
           {erro}
@@ -187,7 +122,6 @@ function VendasPOSConteudo() {
       )}
 
       <PedidosParaConverter
-        autoAbrirId={pedidoIdParam}
         onEscolher={(p) => setPedidoAConverter(p)}
       />
 
@@ -216,34 +150,21 @@ function VendasPOSConteudo() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {itensDaArea.map((item) => {
-              const preco = precoDoItem(item);
-              const noCarrinho = carrinho.find((l) => l.item.id === item.id);
-              const semStockDisponivel =
-                item.controla_stock && item.quantidade_atual <= 0;
+              const preco =
+                area === "bar" ? item.preco_venda_bar : item.preco_venda_restaurante;
               return (
                 <button
                   key={item.id}
-                  onClick={() => adicionarAoCarrinho(item)}
-                  disabled={semStockDisponivel}
-                  className={`relative border p-4 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                    noCarrinho
-                      ? "border-gold bg-gold/10"
-                      : "border-white/10 hover:border-gold"
-                  }`}
+                  onClick={() => setItemSelecionado(item)}
+                  disabled={item.quantidade_atual <= 0}
+                  className="border border-white/10 hover:border-gold p-4 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {noCarrinho && (
-                    <span className="absolute top-2 right-2 bg-gold text-ink text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                      {noCarrinho.quantidade}
-                    </span>
-                  )}
-                  <p className="font-medium truncate pr-6">{item.nome}</p>
+                  <p className="font-medium truncate">{item.nome}</p>
                   <p className="text-gold text-sm mt-1">
                     {preco ? `${preco.toLocaleString("pt-PT")} Kz` : "sem preço"}
                   </p>
                   <p className="text-mist text-xs mt-1">
-                    {item.controla_stock
-                      ? `${item.quantidade_atual} ${item.unidade} em stock`
-                      : "Feito na hora"}
+                    {item.quantidade_atual} {item.unidade} em stock
                   </p>
                 </button>
               );
@@ -257,7 +178,7 @@ function VendasPOSConteudo() {
           <h2 className="font-display text-2xl">Vendas de hoje</h2>
           <p className="text-gold text-sm">
             Total: {totalHoje.toLocaleString("pt-PT")} Kz ({vendasHoje.length}{" "}
-            linhas)
+            vendas)
           </p>
         </div>
         {vendasHoje.length === 0 ? (
@@ -297,31 +218,14 @@ function VendasPOSConteudo() {
         )}
       </section>
 
-      {/* Barra flutuante do carrinho */}
-      {quantidadeCarrinho > 0 && !carrinhoAberto && (
-        <button
-          onClick={() => setCarrinhoAberto(true)}
-          className="fixed bottom-6 right-6 z-40 bg-gold text-ink px-5 py-3.5 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.4)] flex items-center gap-2.5 hover:bg-white transition-colors"
-        >
-          <ShoppingCart size={18} />
-          <span className="text-sm font-semibold">
-            {quantidadeCarrinho} · {totalCarrinho.toLocaleString("pt-PT")} Kz
-          </span>
-        </button>
-      )}
-
-      {carrinhoAberto && (
-        <ModalCarrinho
-          carrinho={carrinho}
+      {itemSelecionado && (
+        <ModalVenda
+          item={itemSelecionado}
           area={area}
           responsavelId={responsavelId}
-          precoDoItem={precoDoItem}
-          onAlterarQuantidade={alterarQuantidade}
-          onRemover={removerDoCarrinho}
-          onCancel={() => setCarrinhoAberto(false)}
+          onCancel={() => setItemSelecionado(null)}
           onConcluida={() => {
-            setCarrinho([]);
-            setCarrinhoAberto(false);
+            setItemSelecionado(null);
             carregarTudo();
           }}
         />
@@ -346,14 +250,10 @@ function VendasPOSConteudo() {
 /**
  * Lista pedidos das mesas (pendentes ou confirmados) que ainda não foram
  * registados como venda, para o staff poder abri-los diretamente aqui.
- * Se autoAbrirId vier preenchido (vindo de ?pedido= no URL, geralmente por
- * ter clicado "Registar venda" na página de Pedidos), abre esse automaticamente.
  */
 function PedidosParaConverter({
-  autoAbrirId,
   onEscolher,
 }: {
-  autoAbrirId?: string | null;
   onEscolher: (pedido: PedidoParaConverter) => void;
 }) {
   const supabase = createClient();
@@ -370,18 +270,11 @@ function PedidosParaConverter({
         .in("estado", ["pendente", "confirmado"])
         .eq("arquivado", false)
         .order("criado_em", { ascending: false });
-      const lista = (data as unknown as PedidoParaConverter[]) ?? [];
-      setPedidos(lista);
+      setPedidos((data as unknown as PedidoParaConverter[]) ?? []);
       setLoading(false);
-
-      if (autoAbrirId) {
-        const encontrado = lista.find((p) => p.id === autoAbrirId);
-        if (encontrado) onEscolher(encontrado);
-      }
     }
     carregar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, autoAbrirId]);
+  }, [supabase]);
 
   if (loading || pedidos.length === 0) return null;
 
@@ -435,6 +328,9 @@ function ModalConverterPedido({
   const [guardando, setGuardando] = useState(false);
   const [erro, setErro] = useState("");
 
+  // Tenta encontrar, por nome, o item de stock correspondente a cada linha
+  // do pedido. Itens sem correspondência ficam assinalados e são ignorados
+  // no desconto de stock, mas o staff é avisado.
   const linhas = pedido.pedido_itens.map((li) => {
     const itemStock = itensDisponiveis.find(
       (i) => i.nome.toLowerCase() === li.nome_produto.toLowerCase()
@@ -460,25 +356,6 @@ function ModalConverterPedido({
     const linhasValidas = linhas.filter((l) => l.itemStock && l.preco !== null);
 
     if (linhasValidas.length > 0) {
-      const { data: transacao, error: erroTransacao } = await supabase
-        .from("vendas_transacoes")
-        .insert({
-          area,
-          forma_pagamento: pedido.forma_pagamento,
-          total,
-          valor_pago: total,
-          troco: 0,
-          responsavel_id: responsavelId,
-        })
-        .select()
-        .single();
-
-      if (erroTransacao || !transacao) {
-        setErro("Não foi possível registar a venda.");
-        setGuardando(false);
-        return;
-      }
-
       const { error: erroVendas } = await supabase.from("vendas").insert(
         linhasValidas.map((l) => ({
           item_id: l.itemStock!.id,
@@ -490,7 +367,6 @@ function ModalConverterPedido({
           valor_pago: l.preco! * l.quantidade,
           troco: 0,
           responsavel_id: responsavelId,
-          transacao_id: transacao.id,
         }))
       );
 
@@ -501,6 +377,7 @@ function ModalConverterPedido({
       }
     }
 
+    // Marca o pedido como entregue, já que a venda foi registada
     await supabase
       .from("pedidos")
       .update({ estado: "entregue" })
@@ -598,168 +475,102 @@ function ModalConverterPedido({
   );
 }
 
-/**
- * Modal do carrinho: mostra todos os produtos escolhidos (pode ser um só
- * ou vários), permite ajustar quantidades, escolher um único método de
- * pagamento, e regista tudo como UMA venda (uma transação, um troco).
- */
-function ModalCarrinho({
-  carrinho,
+function ModalVenda({
+  item,
   area,
   responsavelId,
-  precoDoItem,
-  onAlterarQuantidade,
-  onRemover,
   onCancel,
   onConcluida,
 }: {
-  carrinho: LinhaCarrinho[];
+  item: ItemVendavel;
   area: Area;
   responsavelId: string | null;
-  precoDoItem: (item: ItemVendavel) => number;
-  onAlterarQuantidade: (itemId: string, delta: number) => void;
-  onRemover: (itemId: string) => void;
   onCancel: () => void;
   onConcluida: () => void;
 }) {
   const supabase = createClient();
+  const [quantidade, setQuantidade] = useState("1");
   const [formaPagamento, setFormaPagamento] =
     useState<FormaPagamento>("dinheiro");
   const [valorPago, setValorPago] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [erro, setErro] = useState("");
 
-  const total = carrinho.reduce(
-    (s, l) => s + precoDoItem(l.item) * l.quantidade,
-    0
-  );
+  const precoUnitario =
+    (area === "bar" ? item.preco_venda_bar : item.preco_venda_restaurante) ?? 0;
+  const qtd = Number(quantidade) || 0;
+  const precoTotal = precoUnitario * qtd;
   const pago =
     formaPagamento === "multicaixa"
-      ? total
+      ? precoTotal
       : valorPago === ""
-        ? total
+        ? precoTotal
         : Number(valorPago);
-  const troco = pago - total;
+  const troco = pago - precoTotal;
 
   async function confirmar() {
-    if (carrinho.length === 0) {
-      setErro("O carrinho está vazio.");
+    if (!qtd || qtd <= 0) {
+      setErro("Indica uma quantidade válida.");
       return;
     }
-    for (const linha of carrinho) {
-      if (
-        linha.item.controla_stock &&
-        linha.quantidade > linha.item.quantidade_atual
-      ) {
-        setErro(
-          `Só há ${linha.item.quantidade_atual} ${linha.item.unidade} de ${linha.item.nome} em stock.`
-        );
-        return;
-      }
+    if (qtd > item.quantidade_atual) {
+      setErro(`Só há ${item.quantidade_atual} ${item.unidade} em stock.`);
+      return;
     }
-    if (pago < total) {
+    if (pago < precoTotal) {
       setErro("O valor pago é menor que o total da venda.");
       return;
     }
-
     setGuardando(true);
     setErro("");
-
-    const { data: transacao, error: erroTransacao } = await supabase
-      .from("vendas_transacoes")
-      .insert({
-        area,
-        forma_pagamento: formaPagamento,
-        total,
-        valor_pago: pago,
-        troco: formaPagamento === "multicaixa" ? 0 : troco,
-        responsavel_id: responsavelId,
-      })
-      .select()
-      .single();
-
-    if (erroTransacao || !transacao) {
-      setErro("Não foi possível registar a venda.");
-      setGuardando(false);
-      return;
-    }
-
-    const { error: erroVendas } = await supabase.from("vendas").insert(
-      carrinho.map((linha) => ({
-        item_id: linha.item.id,
-        area,
-        quantidade: linha.quantidade,
-        preco_unitario: precoDoItem(linha.item),
-        preco_total: precoDoItem(linha.item) * linha.quantidade,
-        forma_pagamento: formaPagamento,
-        valor_pago: precoDoItem(linha.item) * linha.quantidade,
-        troco: 0,
-        responsavel_id: responsavelId,
-        transacao_id: transacao.id,
-      }))
-    );
-
+    const { error } = await supabase.from("vendas").insert({
+      item_id: item.id,
+      area,
+      quantidade: qtd,
+      preco_unitario: precoUnitario,
+      preco_total: precoTotal,
+      forma_pagamento: formaPagamento,
+      valor_pago: pago,
+      troco: formaPagamento === "multicaixa" ? 0 : troco,
+      responsavel_id: responsavelId,
+    });
     setGuardando(false);
-
-    if (erroVendas) {
-      setErro("Não foi possível registar os itens da venda.");
+    if (error) {
+      setErro("Não foi possível registar a venda.");
       return;
     }
-
     onConcluida();
   }
 
   return (
     <div className="fixed inset-0 bg-ink/90 flex items-center justify-center p-6 z-50">
-      <div className="bg-ink-soft border border-gold/30 max-w-sm w-full p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+      <div className="bg-ink-soft border border-gold/30 max-w-sm w-full p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-xl flex items-center gap-2">
             <ShoppingCart size={18} className="text-gold" />
-            Carrinho — {AREA_LABEL[area]}
+            {item.nome}
           </h3>
           <button onClick={onCancel} className="text-mist hover:text-paper">
             <X size={18} />
           </button>
         </div>
 
-        <div className="space-y-3">
-          {carrinho.map((linha) => (
-            <div
-              key={linha.item.id}
-              className="flex items-center justify-between gap-3"
-            >
-              <div className="min-w-0">
-                <p className="text-sm truncate">{linha.item.nome}</p>
-                <p className="text-gold text-xs">
-                  {precoDoItem(linha.item).toLocaleString("pt-PT")} Kz
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => onAlterarQuantidade(linha.item.id, -1)}
-                  className="w-6 h-6 flex items-center justify-center border border-white/20 text-mist hover:text-paper"
-                >
-                  <Minus size={11} />
-                </button>
-                <span className="text-sm w-4 text-center">
-                  {linha.quantidade}
-                </span>
-                <button
-                  onClick={() => onAlterarQuantidade(linha.item.id, 1)}
-                  className="w-6 h-6 flex items-center justify-center border border-white/20 text-mist hover:text-paper"
-                >
-                  <Plus size={11} />
-                </button>
-                <button
-                  onClick={() => onRemover(linha.item.id)}
-                  aria-label="Remover item"
-                  className="text-mist hover:text-red-400 ml-1"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            </div>
-          ))}
+        <p className="text-mist text-xs uppercase tracking-wide">
+          A vender em: <span className="text-gold">{AREA_LABEL[area]}</span>
+        </p>
+
+        <div>
+          <label className="text-mist text-xs uppercase tracking-wide">
+            Quantidade
+          </label>
+          <input
+            value={quantidade}
+            onChange={(e) => setQuantidade(e.target.value)}
+            type="number"
+            min="1"
+            autoFocus
+            className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none mt-1"
+          />
         </div>
 
         <div>
@@ -783,9 +594,15 @@ function ModalCarrinho({
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-base font-medium border-t border-white/10 pt-3">
+        <div className="flex items-center justify-between text-sm border-t border-white/10 pt-3">
+          <span className="text-mist">Preço unitário</span>
+          <span>{precoUnitario.toLocaleString("pt-PT")} Kz</span>
+        </div>
+        <div className="flex items-center justify-between text-base font-medium">
           <span>Total a pagar</span>
-          <span className="text-gold">{total.toLocaleString("pt-PT")} Kz</span>
+          <span className="text-gold">
+            {precoTotal.toLocaleString("pt-PT")} Kz
+          </span>
         </div>
 
         {formaPagamento === "dinheiro" && (
@@ -798,7 +615,7 @@ function ModalCarrinho({
                 value={valorPago}
                 onChange={(e) => setValorPago(e.target.value)}
                 type="number"
-                placeholder={total.toString()}
+                placeholder={precoTotal.toString()}
                 className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none mt-1"
               />
             </div>
@@ -817,7 +634,7 @@ function ModalCarrinho({
         <div className="flex gap-2 pt-2">
           <button
             onClick={confirmar}
-            disabled={guardando || carrinho.length === 0}
+            disabled={guardando}
             className="flex-1 inline-flex items-center justify-center gap-1 bg-gold text-ink px-4 py-2.5 text-xs uppercase font-semibold disabled:opacity-60"
           >
             <Check size={14} /> {guardando ? "A registar..." : "Finalizar venda"}

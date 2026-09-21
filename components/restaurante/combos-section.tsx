@@ -26,6 +26,16 @@ export default async function CombosSection() {
                 className="bg-ink p-6 flex flex-col justify-between min-h-[180px] group hover:bg-ink-soft transition-colors duration-300"
               >
                 <div>
+                  {combo.foto_url && (
+                    <div className="w-14 h-14 mb-3 rounded-full overflow-hidden bg-ink-soft border border-white/10">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={combo.foto_url}
+                        alt={combo.nome}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
                   <h3 className="font-display text-lg mb-2">{combo.nome}</h3>
                   {combo.descricao && (
                     <p className="text-mist text-sm leading-relaxed">

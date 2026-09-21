@@ -4,16 +4,6 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/browser-client";
 import { RefreshCw, Check } from "lucide-react";
 
-// Categorias do menu que representam comida feita na hora (ou café/chá),
-// onde não faz sentido controlar quantidade em stock.
-const CATEGORIAS_SEM_STOCK = new Set([
-  "entradas",
-  "pratos principais",
-  "petiscos",
-  "fast food",
-  "cafetaria",
-]);
-
 export default function SincronizarMenu({
   onSincronizado,
 }: {
@@ -72,7 +62,6 @@ export default function SincronizarMenu({
         unidade: string;
         quantidade_atual: number;
         estoque_minimo: number;
-        controla_stock: boolean;
       };
 
       const candidatos: CandidatoStock[] = [];
@@ -85,20 +74,13 @@ export default function SincronizarMenu({
           continue;
         }
         nomesExistentes.add(chave); // evita duplicados dentro do próprio menu
-        const nomeCategoria = categoriaPorId.get(p.categoria_id) ?? null;
-        const semStock = nomeCategoria
-          ? CATEGORIAS_SEM_STOCK.has(nomeCategoria.trim().toLowerCase())
-          : false;
         candidatos.push({
           nome: p.nome.trim(),
           preco_venda_restaurante: p.preco,
-          categoria: nomeCategoria,
+          categoria: categoriaPorId.get(p.categoria_id) ?? null,
           unidade: "un",
           quantidade_atual: 0,
           estoque_minimo: 0,
-          // Pratos/cafetaria: feitos na hora, sem stock a contar.
-          // Bebidas e o resto: mantêm o controlo de stock normal.
-          controla_stock: !semStock,
         });
       }
 
@@ -116,9 +98,6 @@ export default function SincronizarMenu({
           unidade: "un",
           quantidade_atual: 0,
           estoque_minimo: 0,
-          // Combos são refeições montadas na hora — sem stock a contar,
-          // à semelhança dos pratos.
-          controla_stock: false,
         });
       }
 
@@ -150,10 +129,8 @@ export default function SincronizarMenu({
           </p>
           <p className="text-mist text-xs">
             Cria no Stock os produtos do menu que ainda não existem aqui,
-            usando o preço do menu como preço no Restaurante. Pratos e
-            combos entram sem controlo de stock (sempre disponíveis);
-            bebidas mantêm o stock normal. Não duplica nem altera os que já
-            tens.
+            usando o preço do menu como preço no Restaurante. Não duplica
+            nem altera os que já tens.
           </p>
         </div>
         <button

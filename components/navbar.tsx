@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { siteConfig } from "@/lib/site-config";
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -22,6 +24,14 @@ export default function Navbar() {
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  // Rede de segurança: garante que o menu mobile fecha sempre que a rota
+  // muda, mesmo que o onClick de um link específico não tenha corrido a
+  // tempo (visto em alguns tablets/WebViews mais lentos, onde o menu
+  // ficava visualmente preso por cima do conteúdo da página seguinte).
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   return (
     <header
@@ -73,11 +83,30 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       <div
-        className={`lg:hidden fixed inset-x-0 top-20 bottom-0 bg-ink transition-transform duration-400 ease-out ${
-          open ? "translate-x-0" : "translate-x-full"
+        className={`lg:hidden fixed inset-0 z-[100] h-[100dvh] w-full bg-ink overflow-y-auto transition-transform duration-400 ease-out ${
+          open
+            ? "translate-x-0 pointer-events-auto"
+            : "translate-x-full pointer-events-none"
         }`}
+        aria-hidden={!open}
       >
-        <nav className="flex flex-col px-8 pt-10 gap-2">
+        <div className="flex items-center justify-between px-6 h-20">
+          <Link
+            href="/"
+            className="font-display text-xl tracking-[0.08em] text-paper"
+            onClick={() => setOpen(false)}
+          >
+            CHOCOLATE <span className="text-gold">COM PIMENTA</span>
+          </Link>
+          <button
+            aria-label="Fechar menu"
+            onClick={() => setOpen(false)}
+            className="text-paper"
+          >
+            <X size={26} />
+          </button>
+        </div>
+        <nav className="flex flex-col px-8 pt-6 pb-10 gap-2">
           {siteConfig.navLinks.map((link, i) => (
             <Link
               key={link.href}
