@@ -24,6 +24,7 @@ type ItemEstoque = {
   preco_venda_bar: number | null;
   preco_venda_restaurante: number | null;
   ativo: boolean;
+  controla_stock: boolean;
 };
 
 type Movimento = {
@@ -98,7 +99,9 @@ export default function EstoqueManager() {
       <div className="bg-ink-soft border border-gold/20 px-4 py-3 text-sm text-mist max-w-2xl">
         O stock é partilhado entre bar e restaurante — a mesma unidade física
         conta para os dois. Define um preço de venda para cada área onde o
-        item é vendido; deixa em branco a área onde não se vende.
+        item é vendido; deixa em branco a área onde não se vende. Itens
+        feitos na hora (pratos, café...) podem ter o controlo de stock
+        desligado, para nunca bloquearem a venda por "falta de stock".
       </div>
 
       <SincronizarMenu onSincronizado={carregarTudo} />
@@ -232,8 +235,10 @@ function ItemRow({
   const [precoRestaurante, setPrecoRestaurante] = useState(
     item.preco_venda_restaurante?.toString() ?? ""
   );
+  const [controlaStock, setControlaStock] = useState(item.controla_stock);
 
-  const abaixoDoMinimo = item.quantidade_atual <= item.estoque_minimo;
+  const abaixoDoMinimo =
+    item.controla_stock && item.quantidade_atual <= item.estoque_minimo;
 
   async function guardar() {
     await supabase
@@ -247,6 +252,7 @@ function ItemRow({
         preco_venda_restaurante: precoRestaurante
           ? Number(precoRestaurante)
           : null,
+        controla_stock: controlaStock,
       })
       .eq("id", item.id);
     setEditando(false);
@@ -312,7 +318,8 @@ function ItemRow({
             value={estoqueMinimo}
             onChange={(e) => setEstoqueMinimo(e.target.value)}
             type="number"
-            className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
+            disabled={!controlaStock}
+            className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none disabled:opacity-40"
             placeholder="Stock mínimo"
           />
           <div>
@@ -340,6 +347,23 @@ function ItemRow({
             />
           </div>
         </div>
+
+        <label className="flex items-start gap-2 text-sm border border-white/10 p-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={controlaStock}
+            onChange={(e) => setControlaStock(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="block">Controla stock</span>
+            <span className="block text-mist text-xs mt-0.5">
+              Desliga para pratos feitos na hora, café, etc. — ficam sempre
+              disponíveis para venda, sem quantidade a contar.
+            </span>
+          </span>
+        </label>
+
         <div className="flex gap-2">
           <button
             onClick={guardar}
@@ -373,9 +397,16 @@ function ItemRow({
             className={`font-medium truncate ${!item.ativo ? "text-mist line-through" : ""}`}
           >
             {item.nome}
+            {!item.controla_stock && (
+              <span className="ml-2 text-[9px] uppercase text-mist border border-white/15 px-1.5 py-0.5">
+                Feito na hora
+              </span>
+            )}
           </p>
           <p className="text-mist text-xs truncate">
-            {item.quantidade_atual} {item.unidade} em stock
+            {item.controla_stock
+              ? `${item.quantidade_atual} ${item.unidade} em stock`
+              : "Sem controlo de stock"}
             {item.categoria ? ` · ${item.categoria}` : ""}
           </p>
         </div>
@@ -393,22 +424,26 @@ function ItemRow({
             </span>
           )}
         </div>
-        <button
-          onClick={() => setMovimentando("entrada")}
-          aria-label="Registar entrada"
-          title="Registar entrada"
-          className="text-mist hover:text-gold transition-colors p-1"
-        >
-          <PackagePlus size={16} />
-        </button>
-        <button
-          onClick={() => setMovimentando("saida")}
-          aria-label="Registar saída"
-          title="Registar saída"
-          className="text-mist hover:text-gold transition-colors p-1"
-        >
-          <PackageMinus size={16} />
-        </button>
+        {item.controla_stock && (
+          <>
+            <button
+              onClick={() => setMovimentando("entrada")}
+              aria-label="Registar entrada"
+              title="Registar entrada"
+              className="text-mist hover:text-gold transition-colors p-1"
+            >
+              <PackagePlus size={16} />
+            </button>
+            <button
+              onClick={() => setMovimentando("saida")}
+              aria-label="Registar saída"
+              title="Registar saída"
+              className="text-mist hover:text-gold transition-colors p-1"
+            >
+              <PackageMinus size={16} />
+            </button>
+          </>
+        )}
         <button
           onClick={alternarAtivo}
           className={`text-[10px] uppercase px-2 py-1 border ${
@@ -539,6 +574,7 @@ function NovoItemForm({
   const [estoqueMinimo, setEstoqueMinimo] = useState("0");
   const [precoBar, setPrecoBar] = useState("");
   const [precoRestaurante, setPrecoRestaurante] = useState("");
+  const [controlaStock, setControlaStock] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -559,6 +595,7 @@ function NovoItemForm({
       preco_venda_restaurante: precoRestaurante
         ? Number(precoRestaurante)
         : null,
+      controla_stock: controlaStock,
     });
     setGuardando(false);
     if (error) {
@@ -594,14 +631,16 @@ function NovoItemForm({
           value={quantidadeInicial}
           onChange={(e) => setQuantidadeInicial(e.target.value)}
           type="number"
-          className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
+          disabled={!controlaStock}
+          className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none disabled:opacity-40"
           placeholder="Quantidade inicial em stock"
         />
         <input
           value={estoqueMinimo}
           onChange={(e) => setEstoqueMinimo(e.target.value)}
           type="number"
-          className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none col-span-2"
+          disabled={!controlaStock}
+          className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none disabled:opacity-40 col-span-2"
           placeholder="Stock mínimo (alerta)"
         />
         <div>
@@ -629,6 +668,23 @@ function NovoItemForm({
           />
         </div>
       </div>
+
+      <label className="flex items-start gap-2 text-sm border border-white/10 p-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={controlaStock}
+          onChange={(e) => setControlaStock(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="block">Controla stock</span>
+          <span className="block text-mist text-xs mt-0.5">
+            Desliga para pratos feitos na hora, café, etc. — ficam sempre
+            disponíveis para venda, sem quantidade a contar.
+          </span>
+        </span>
+      </label>
+
       {erro && <p className="text-red-400 text-xs">{erro}</p>}
       <div className="flex gap-2">
         <button
