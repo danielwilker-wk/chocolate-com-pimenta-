@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser-client";
 import { X, Check, ShoppingCart, ClipboardList } from "lucide-react";
 
@@ -14,6 +15,7 @@ type ItemVendavel = {
   quantidade_atual: number;
   preco_venda_bar: number | null;
   preco_venda_restaurante: number | null;
+  controla_stock: boolean;
 };
 
 type Venda = {
@@ -45,8 +47,22 @@ const PAGAMENTO_LABEL: Record<FormaPagamento, string> = {
   multicaixa: "Multicaixa",
 };
 
+// A leitura do URL (?pedido=) usa useSearchParams, que em Next.js exige uma
+// fronteira Suspense — este wrapper existe só para isso; a lógica real
+// mantém-se toda em VendasPOSConteudo.
 export default function VendasPOS() {
+  return (
+    <Suspense fallback={<p className="text-mist">A carregar...</p>}>
+      <VendasPOSConteudo />
+    </Suspense>
+  );
+}
+
+function VendasPOSConteudo() {
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const pedidoIdParam = searchParams.get("pedido");
+
   const [itens, setItens] = useState<ItemVendavel[]>([]);
   const [vendasHoje, setVendasHoje] = useState<Venda[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +83,7 @@ export default function VendasPOS() {
       supabase
         .from("estoque_itens")
         .select(
-          "id, nome, unidade, quantidade_atual, preco_venda_bar, preco_venda_restaurante"
+          "id, nome, unidade, quantidade_atual, preco_venda_bar, preco_venda_restaurante, controla_stock"
         )
         .eq("ativo", true)
         .order("nome"),
@@ -122,6 +138,7 @@ export default function VendasPOS() {
       )}
 
       <PedidosParaConverter
+        autoAbrirId={pedidoIdParam}
         onEscolher={(p) => setPedidoAConverter(p)}
       />
 
@@ -156,7 +173,7 @@ export default function VendasPOS() {
                 <button
                   key={item.id}
                   onClick={() => setItemSelecionado(item)}
-                  disabled={item.quantidade_atual <= 0}
+                  disabled={item.controla_stock && item.quantidade_atual <= 0}
                   className="border border-white/10 hover:border-gold p-4 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <p className="font-medium truncate">{item.nome}</p>
@@ -164,7 +181,9 @@ export default function VendasPOS() {
                     {preco ? `${preco.toLocaleString("pt-PT")} Kz` : "sem preço"}
                   </p>
                   <p className="text-mist text-xs mt-1">
-                    {item.quantidade_atual} {item.unidade} em stock
+                    {item.controla_stock
+                      ? `${item.quantidade_atual} ${item.unidade} em stock`
+                      : "Feito na hora"}
                   </p>
                 </button>
               );
@@ -250,10 +269,14 @@ export default function VendasPOS() {
 /**
  * Lista pedidos das mesas (pendentes ou confirmados) que ainda não foram
  * registados como venda, para o staff poder abri-los diretamente aqui.
+ * Se autoAbrirId vier preenchido (vindo de ?pedido= no URL, geralmente por
+ * ter clicado "Registar venda" na página de Pedidos), abre esse automaticamente.
  */
 function PedidosParaConverter({
+  autoAbrirId,
   onEscolher,
 }: {
+  autoAbrirId?: string | null;
   onEscolher: (pedido: PedidoParaConverter) => void;
 }) {
   const supabase = createClient();
@@ -270,11 +293,18 @@ function PedidosParaConverter({
         .in("estado", ["pendente", "confirmado"])
         .eq("arquivado", false)
         .order("criado_em", { ascending: false });
-      setPedidos((data as unknown as PedidoParaConverter[]) ?? []);
+      const lista = (data as unknown as PedidoParaConverter[]) ?? [];
+      setPedidos(lista);
       setLoading(false);
+
+      if (autoAbrirId) {
+        const encontrado = lista.find((p) => p.id === autoAbrirId);
+        if (encontrado) onEscolher(encontrado);
+      }
     }
     carregar();
-  }, [supabase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, autoAbrirId]);
 
   if (loading || pedidos.length === 0) return null;
 
@@ -328,9 +358,6 @@ function ModalConverterPedido({
   const [guardando, setGuardando] = useState(false);
   const [erro, setErro] = useState("");
 
-  // Tenta encontrar, por nome, o item de stock correspondente a cada linha
-  // do pedido. Itens sem correspondência ficam assinalados e são ignorados
-  // no desconto de stock, mas o staff é avisado.
   const linhas = pedido.pedido_itens.map((li) => {
     const itemStock = itensDisponiveis.find(
       (i) => i.nome.toLowerCase() === li.nome_produto.toLowerCase()
@@ -377,7 +404,6 @@ function ModalConverterPedido({
       }
     }
 
-    // Marca o pedido como entregue, já que a venda foi registada
     await supabase
       .from("pedidos")
       .update({ estado: "entregue" })
@@ -513,7 +539,7 @@ function ModalVenda({
       setErro("Indica uma quantidade válida.");
       return;
     }
-    if (qtd > item.quantidade_atual) {
+    if (item.controla_stock && qtd > item.quantidade_atual) {
       setErro(`Só há ${item.quantidade_atual} ${item.unidade} em stock.`);
       return;
     }
