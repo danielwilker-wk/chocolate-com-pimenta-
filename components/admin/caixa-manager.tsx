@@ -27,7 +27,6 @@ type VendaDetalhada = {
   quantidade: number;
   preco_total: number;
   forma_pagamento: "dinheiro" | "multicaixa";
-  troco: number | null;
   estoque_itens: { nome: string } | null;
 };
 
@@ -65,18 +64,29 @@ async function gerarRelatorioPDF(sessao: Sessao, area: Area) {
   const supabase = createClient();
   const fim = sessao.fechado_em ?? new Date().toISOString();
 
-  const { data } = await supabase
-    .from("vendas")
-    .select("quantidade, preco_total, forma_pagamento, troco, estoque_itens(nome)")
-    .eq("area", area)
-    .gte("criado_em", sessao.aberto_em)
-    .lte("criado_em", fim);
+  const [vendasRes, transacoesRes] = await Promise.all([
+    supabase
+      .from("vendas")
+      .select("quantidade, preco_total, forma_pagamento, estoque_itens(nome)")
+      .eq("area", area)
+      .gte("criado_em", sessao.aberto_em)
+      .lte("criado_em", fim),
+    supabase
+      .from("vendas_transacoes")
+      .select("troco")
+      .eq("area", area)
+      .gte("criado_em", sessao.aberto_em)
+      .lte("criado_em", fim),
+  ]);
 
-  const vendas = (data as unknown as VendaDetalhada[]) ?? [];
+  const vendas = (vendasRes.data as unknown as VendaDetalhada[]) ?? [];
+  const trocoTotal = (transacoesRes.data ?? []).reduce(
+    (s, t) => s + (t.troco ?? 0),
+    0
+  );
 
   const totalVendido = vendas.reduce((s, v) => s + v.preco_total, 0);
   const numeroVendas = vendas.length;
-  const trocoTotal = vendas.reduce((s, v) => s + (v.troco ?? 0), 0);
   const vendasDinheiro = vendas
     .filter((v) => v.forma_pagamento === "dinheiro")
     .reduce((s, v) => s + v.preco_total, 0);
@@ -419,6 +429,7 @@ function AbrirCaixaForm({
         value={valor}
         onChange={(e) => setValor(e.target.value)}
         type="number"
+        autoFocus
         placeholder="ex: 5000"
         className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
       />
@@ -493,6 +504,7 @@ function FecharCaixaForm({
           value={valorContado}
           onChange={(e) => setValorContado(e.target.value)}
           type="number"
+          autoFocus
           className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none mt-1"
         />
       </div>
