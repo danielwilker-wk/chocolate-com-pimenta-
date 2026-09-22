@@ -18,12 +18,9 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Bloqueia o scroll da página por trás do menu de forma mais robusta do
-  // que só "overflow: hidden" — em alguns tablets/WebViews mais antigos
-  // (ex: Android/Huawei), "position: fixed" no menu não se comporta bem
-  // se a página por trás ainda puder rolar/fazer zoom, deixando conteúdo
-  // a aparecer por baixo do menu. Fixar o próprio <body> no scroll atual
-  // evita isso em praticamente todos os navegadores.
+  // Bloqueia o scroll da página por trás do menu. Guarda a posição atual
+  // e fixa o <body> nela — funciona mesmo em navegadores muito antigos,
+  // ao contrário de só "overflow: hidden".
   useEffect(() => {
     if (open) {
       const scrollY = window.scrollY;
@@ -31,33 +28,30 @@ export default function Navbar() {
       document.body.style.top = `-${scrollY}px`;
       document.body.style.left = "0";
       document.body.style.right = "0";
-      document.body.style.overflow = "hidden";
+      document.body.style.width = "100%";
     } else {
       const topAtual = document.body.style.top;
       document.body.style.position = "";
       document.body.style.top = "";
       document.body.style.left = "";
       document.body.style.right = "";
-      document.body.style.overflow = "";
+      document.body.style.width = "";
       if (topAtual) {
         window.scrollTo(0, -parseInt(topAtual, 10) || 0);
       }
     }
   }, [open]);
 
-  // Rede de segurança: garante que o menu mobile fecha sempre que a rota
-  // muda, mesmo que o onClick de um link específico não tenha corrido a
-  // tempo (visto em alguns tablets/WebViews mais lentos, onde o menu
-  // ficava visualmente preso por cima do conteúdo da página seguinte).
+  // Rede de segurança: fecha sempre que a rota muda.
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
   return (
     <header
-      className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${
+      className={`fixed top-0 inset-x-0 z-50 transition-colors duration-300 ${
         scrolled || open
-          ? "bg-ink/95 backdrop-blur-md border-b border-white/5"
+          ? "bg-ink border-b border-white/5"
           : "bg-gradient-to-b from-black/50 to-transparent"
       }`}
     >
@@ -101,52 +95,62 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile menu */}
-      <div
-        className={`lg:hidden fixed inset-0 z-[100] h-screen h-[100dvh] w-screen bg-ink overflow-y-auto transition-transform duration-400 ease-out ${
-          open
-            ? "translate-x-0 pointer-events-auto"
-            : "translate-x-full pointer-events-none"
-        }`}
-        aria-hidden={!open}
-      >
-        <div className="flex items-center justify-between px-6 h-20">
-          <Link
-            href="/"
-            className="font-display text-xl tracking-[0.08em] text-paper"
-            onClick={() => setOpen(false)}
-          >
-            CHOCOLATE <span className="text-gold">COM PIMENTA</span>
-          </Link>
-          <button
-            aria-label="Fechar menu"
-            onClick={() => setOpen(false)}
-            className="text-paper"
-          >
-            <X size={26} />
-          </button>
-        </div>
-        <nav className="flex flex-col px-8 pt-6 pb-10 gap-2">
-          {siteConfig.navLinks.map((link, i) => (
+      {/* Mobile menu — só existe no ecrã quando "open" é verdadeiro (sem
+          deslizar/animar, sem depender de transform ou de unidades de
+          altura modernas), para funcionar em navegadores muito antigos. */}
+      {open && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "#050505",
+            zIndex: 200,
+            overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          <div className="flex items-center justify-between px-6 h-20">
             <Link
-              key={link.href}
-              href={link.href}
+              href="/"
+              className="font-display text-xl tracking-[0.08em] text-paper"
               onClick={() => setOpen(false)}
-              className="py-4 border-b border-white/10 text-lg font-display text-paper hover:text-gold transition-colors"
-              style={{ transitionDelay: `${i * 30}ms` }}
             >
-              {link.label}
+              CHOCOLATE <span className="text-gold">COM PIMENTA</span>
             </Link>
-          ))}
-          <Link
-            href="/reservas"
-            onClick={() => setOpen(false)}
-            className="mt-8 inline-flex justify-center items-center border border-gold text-gold px-6 py-4 text-xs tracking-[0.15em] uppercase"
-          >
-            Fazer reserva
-          </Link>
-        </nav>
-      </div>
+            <button
+              aria-label="Fechar menu"
+              onClick={() => setOpen(false)}
+              className="text-paper"
+            >
+              <X size={26} />
+            </button>
+          </div>
+          <nav className="flex flex-col px-8 pt-6 pb-10 gap-2">
+            {siteConfig.navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setOpen(false)}
+                className="py-4 border-b border-white/10 text-lg font-display text-paper hover:text-gold transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
+            <Link
+              href="/reservas"
+              onClick={() => setOpen(false)}
+              className="mt-8 inline-flex justify-center items-center border border-gold text-gold px-6 py-4 text-xs tracking-[0.15em] uppercase"
+            >
+              Fazer reserva
+            </Link>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
