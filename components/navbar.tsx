@@ -18,11 +18,31 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Bloqueia o scroll da página por trás do menu de forma mais robusta do
+  // que só "overflow: hidden" — em alguns tablets/WebViews mais antigos
+  // (ex: Android/Huawei), "position: fixed" no menu não se comporta bem
+  // se a página por trás ainda puder rolar/fazer zoom, deixando conteúdo
+  // a aparecer por baixo do menu. Fixar o próprio <body> no scroll atual
+  // evita isso em praticamente todos os navegadores.
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
-    return () => {
+    if (open) {
+      const scrollY = window.scrollY;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
+      document.body.style.overflow = "hidden";
+    } else {
+      const topAtual = document.body.style.top;
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
       document.body.style.overflow = "";
-    };
+      if (topAtual) {
+        window.scrollTo(0, -parseInt(topAtual, 10) || 0);
+      }
+    }
   }, [open]);
 
   // Rede de segurança: garante que o menu mobile fecha sempre que a rota
@@ -83,7 +103,7 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       <div
-        className={`lg:hidden fixed inset-0 z-[100] h-[100dvh] w-full bg-ink overflow-y-auto transition-transform duration-400 ease-out ${
+        className={`lg:hidden fixed inset-0 z-[100] h-screen h-[100dvh] w-screen bg-ink overflow-y-auto transition-transform duration-400 ease-out ${
           open
             ? "translate-x-0 pointer-events-auto"
             : "translate-x-full pointer-events-none"
