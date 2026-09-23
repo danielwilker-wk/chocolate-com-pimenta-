@@ -126,9 +126,13 @@ async function gerarRelatorioPDF(sessao: Sessao, area: Area) {
       ["Total vendido", fmt(totalVendido)],
       ["Número de vendas", `${numeroVendas}`],
       ["Troco total entregue", fmt(trocoTotal)],
-      ["Valor esperado no fecho", fmt(valorEsperado)],
+      ["Valor esperado no fecho (só dinheiro)", fmt(valorEsperado)],
       ["Valor contado no fecho", fmt(valorContado)],
       ["Diferença", `${diferenca >= 0 ? "+" : ""}${fmt(diferenca)}`],
+      [
+        "Total do dia (abertura + dinheiro + multicaixa)",
+        fmt(sessao.valor_abertura + vendasDinheiro + vendasMulticaixa),
+      ],
     ],
     headStyles: { fillColor: [36, 19, 13] },
   });
@@ -296,12 +300,19 @@ function CaixaDaArea({ area }: { area: Area }) {
           <Linha label="Valor de abertura" valor={sessaoAberta.valor_abertura} />
           <Linha label="Vendas em dinheiro" valor={vendasDinheiro} />
           <Linha
-            label="Vendas em Multicaixa (à parte, só consulta)"
+            label="Vendas em Multicaixa"
             valor={vendasMulticaixa}
             sutil
           />
           <div className="border-t border-white/10 pt-3">
-            <Linha label="Valor esperado na gaveta" valor={valorEsperado} destaque />
+            <Linha label="Valor esperado na gaveta (só dinheiro)" valor={valorEsperado} destaque />
+          </div>
+          <div className="border-t border-white/10 pt-3">
+            <Linha
+              label="Total do dia (abertura + dinheiro + multicaixa)"
+              valor={sessaoAberta.valor_abertura + vendasDinheiro + vendasMulticaixa}
+              destaque
+            />
           </div>
           <button
             onClick={() => setAFechar(true)}
