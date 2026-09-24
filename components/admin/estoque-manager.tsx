@@ -229,6 +229,9 @@ function ItemRow({
   const [estoqueMinimo, setEstoqueMinimo] = useState(
     item.estoque_minimo.toString()
   );
+  const [quantidadeAtual, setQuantidadeAtual] = useState(
+    item.quantidade_atual.toString()
+  );
   const [precoBar, setPrecoBar] = useState(
     item.preco_venda_bar?.toString() ?? ""
   );
@@ -255,6 +258,24 @@ function ItemRow({
         controla_stock: controlaStock,
       })
       .eq("id", item.id);
+
+    // A quantidade não é escrita diretamente — gera um movimento de
+    // "ajuste" com a diferença, para o histórico continuar completo e
+    // coerente com todas as outras alterações de stock.
+    const diferenca = (Number(quantidadeAtual) || 0) - item.quantidade_atual;
+    if (controlaStock && diferenca !== 0) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      await supabase.from("movimentos_estoque").insert({
+        item_id: item.id,
+        tipo: diferenca > 0 ? "entrada" : "saida",
+        quantidade: Math.abs(diferenca),
+        motivo: "Correção manual",
+        responsavel_id: user?.id ?? null,
+      });
+    }
+
     setEditando(false);
     onChange();
   }
@@ -314,6 +335,20 @@ function ItemRow({
             className="bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none"
             placeholder="Categoria (opcional)"
           />
+          <div>
+            <input
+              value={quantidadeAtual}
+              onChange={(e) => setQuantidadeAtual(e.target.value)}
+              type="number"
+              disabled={!controlaStock}
+              className="w-full bg-transparent border border-white/15 focus:border-gold px-3 py-2 text-sm outline-none disabled:opacity-40"
+              placeholder="Quantidade atual"
+            />
+            <p className="text-mist text-[10px] mt-1">
+              Corrige aqui um erro de digitação — fica registado no
+              histórico como &ldquo;Correção manual&rdquo;.
+            </p>
+          </div>
           <input
             value={estoqueMinimo}
             onChange={(e) => setEstoqueMinimo(e.target.value)}
